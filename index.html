@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Línea de Trabajo & Calendario - Progress Block</title>
+  <title>Línea de Progreso - Secretaría de Turismo y OCV</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- React & ReactDOM CDN -->
@@ -11,6 +11,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <!-- Babel CDN -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- html2pdf.js para exportar a PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
   <div id="root"></div>
@@ -18,7 +20,6 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // Credenciales de acceso
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
@@ -28,6 +29,7 @@
         title: 'PROGRESS 01 - Implementación Backend',
         percentage: 45,
         color: 'bg-teal-400',
+        status: 'en-tiempo', // en-tiempo, en-riesgo, detenido, completado
         notes: 'Anotación importante: Faltan pruebas de integración.',
         driveUrl: '',
         updates: [
@@ -40,6 +42,7 @@
         title: 'PROGRESS 02 - Diseño UI/UX',
         percentage: 70,
         color: 'bg-orange-400',
+        status: 'en-tiempo',
         notes: 'Revisar prototipo en Figma antes de enviar a producción.',
         driveUrl: '',
         updates: [{ date: '2026-09-12', text: 'Wireframes aprobados' }]
@@ -49,6 +52,7 @@
         title: 'PROGRESS 03 - Configuración AWS',
         percentage: 30,
         color: 'bg-slate-700',
+        status: 'en-riesgo',
         notes: 'Credenciales en AWS Secrets Manager.',
         driveUrl: '',
         updates: []
@@ -58,6 +62,7 @@
         title: 'PROGRESS 04 - QA & Testing',
         percentage: 85,
         color: 'bg-lime-500',
+        status: 'en-tiempo',
         notes: 'Faltan evidencias de pruebas de estrés.',
         driveUrl: '',
         updates: [{ date: '2026-09-15', text: 'Documento de casos de prueba subido' }]
@@ -67,6 +72,7 @@
         title: 'PROGRESS 05 - Despliegue Final',
         percentage: 10,
         color: 'bg-rose-800',
+        status: 'detenido',
         notes: 'Pendiente la aprobación final del director.',
         driveUrl: '',
         updates: []
@@ -91,7 +97,9 @@
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
-      
+      const [viewMode, setViewMode] = useState('linea'); // 'linea' o 'kanban'
+      const [statusFilter, setStatusFilter] = useState('todos'); // 'todos', 'en-tiempo', 'en-riesgo', 'detenido', 'completado'
+
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [loginUser, setLoginUser] = useState('');
@@ -103,11 +111,12 @@
       const [title, setTitle] = useState('');
       const [percentage, setPercentage] = useState(0);
       const [color, setColor] = useState('bg-teal-400');
+      const [status, setStatus] = useState('en-tiempo');
       const [notes, setNotes] = useState('');
       const [driveUrl, setDriveUrl] = useState('');
       const [newUpdateText, setNewUpdateText] = useState('');
 
-      // Formulario Eventos/Alertas (Calendario)
+      // Formulario Eventos
       const [isAddingEvent, setIsAddingEvent] = useState(false);
       const [eventTitle, setEventTitle] = useState('');
       const [eventDate, setEventDate] = useState('');
@@ -115,7 +124,7 @@
       const [eventType, setEventType] = useState('reunion');
 
       // Estado del Calendario
-      const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1)); // Septiembre 2026
+      const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
       useEffect(() => {
         localStorage.setItem('workline_projects', JSON.stringify(projects));
@@ -168,6 +177,7 @@
                 title,
                 percentage: Number(percentage),
                 color,
+                status,
                 notes,
                 driveUrl: formattedUrl,
                 updates: updatedList
@@ -183,6 +193,7 @@
             title: title || `PROGRESS ${newId} - Nuevo Pendiente`,
             percentage: Number(percentage),
             color,
+            status,
             notes,
             driveUrl: formattedUrl,
             updates: newUpdateText.trim() 
@@ -223,6 +234,7 @@
         setTitle(p.title);
         setPercentage(p.percentage);
         setColor(p.color);
+        setStatus(p.status || 'en-tiempo');
         setNotes(p.notes || '');
         setDriveUrl(p.driveUrl || '');
         setNewUpdateText('');
@@ -233,12 +245,26 @@
         setTitle('');
         setPercentage(0);
         setColor('bg-teal-400');
+        setStatus('en-tiempo');
         setNotes('');
         setDriveUrl('');
         setNewUpdateText('');
       };
 
-      // Lógica de Renderizado del Calendario
+      // Exportar a PDF
+      const handleExportPDF = () => {
+        const element = document.getElementById('exportable-area');
+        const opt = {
+          margin:       0.3,
+          filename:     `Reporte_Ejecutivo_Turismo_OCV_${new Date().toISOString().split('T')[0]}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2 },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+        };
+        html2pdf().set(opt).from(element).save();
+      };
+
+      // Calendario Lógica
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
@@ -260,15 +286,31 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
+      // Filtrado de Proyectos
+      const filteredProjects = projects.filter(p => {
+        if (statusFilter === 'todos') return true;
+        return p.status === statusFilter;
+      });
+
+      const getStatusBadge = (st) => {
+        switch(st) {
+          case 'en-tiempo': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-300">🟢 En Tiempo</span>;
+          case 'en-riesgo': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">🟡 En Riesgo</span>;
+          case 'detenido':  return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">🔴 Detenido</span>;
+          case 'completado':return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">🔵 Completado</span>;
+          default: return null;
+        }
+      };
+
       return (
         <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
           {/* HEADER PRINCIPAL */}
-          <header className="text-center mb-8 relative">
+          <header className="text-center mb-6 relative">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-gray-800 uppercase">
-              Line Progress Block
+              Línea de Progreso de Proyectos 2026
             </h1>
-            <p className="text-gray-500 tracking-widest text-xs md:text-sm font-semibold mt-1">
-              INFOGRAPHIC WORKFLOW, CALENDARIO & ALERTAS
+            <p className="text-gray-500 tracking-widest text-xs md:text-sm font-semibold mt-1 uppercase">
+              Secretaría de Turismo y OCV
             </p>
             
             <div className="absolute right-0 top-0 flex gap-2">
@@ -298,11 +340,68 @@
             </div>
           </header>
 
-          {/* LOGIN O PANEL ADMINISTRATIVO */}
+          {/* BARRA DE HERRAMIENTAS EJECUTIVAS (FILTROS, VISTAS Y PDF) */}
+          <div className="bg-white p-3 rounded-xl shadow border border-gray-200 mb-6 flex flex-wrap items-center justify-between gap-3">
+            
+            {/* Filtros por Semáforo */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-gray-500 uppercase">Filtro Estado:</span>
+              <button 
+                onClick={() => setStatusFilter('todos')} 
+                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'todos' ? 'bg-gray-800 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
+              >
+                Todos ({projects.length})
+              </button>
+              <button 
+                onClick={() => setStatusFilter('en-tiempo')} 
+                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-tiempo' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
+              >
+                🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
+              </button>
+              <button 
+                onClick={() => setStatusFilter('en-riesgo')} 
+                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-riesgo' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}
+              >
+                🟡 En Riesgo ({projects.filter(p=>p.status==='en-riesgo').length})
+              </button>
+              <button 
+                onClick={() => setStatusFilter('detenido')} 
+                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'detenido' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
+              >
+                🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
+              </button>
+            </div>
+
+            {/* Selector de Vista y Exportar PDF */}
+            <div className="flex items-center gap-2">
+              <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
+                <button 
+                  onClick={() => setViewMode('linea')}
+                  className={`px-3 py-1 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  📊 Vista Línea
+                </button>
+                <button 
+                  onClick={() => setViewMode('kanban')}
+                  className={`px-3 py-1 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  📋 Vista Kanban
+                </button>
+              </div>
+
+              <button 
+                onClick={handleExportPDF}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1"
+              >
+                📄 Exportar PDF
+              </button>
+            </div>
+          </div>
+
+          {/* PANEL ADMINISTRATIVO */}
           {isAdminOpen && (
             <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md border border-blue-200 mb-8">
               {!isAuthenticated ? (
-                /* FORMULARIO DE AUTENTICACIÓN */
                 <div className="max-w-sm mx-auto p-4">
                   <h2 className="text-center font-bold text-gray-700 mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
                   {authError && <p className="text-red-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
@@ -338,7 +437,6 @@
                   </form>
                 </div>
               ) : (
-                /* PANEL DE EDICIÓN PROYECTOS (AUTENTICADO) */
                 <div>
                   <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
                     {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
@@ -369,6 +467,20 @@
                     </div>
 
                     <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Estado (Semáforo Ejecutivo)</label>
+                      <select 
+                        value={status} 
+                        onChange={e => setStatus(e.target.value)}
+                        className="w-full border rounded p-2 text-sm"
+                      >
+                        <option value="en-tiempo">🟢 En Tiempo</option>
+                        <option value="en-riesgo">🟡 En Riesgo</option>
+                        <option value="detenido">🔴 Detenido</option>
+                        <option value="completado">🔵 Completado</option>
+                      </select>
+                    </div>
+
+                    <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra</label>
                       <select 
                         value={color} 
@@ -384,11 +496,10 @@
                         <option value="bg-indigo-600">Índigo / Violeta</option>
                         <option value="bg-emerald-500">Verde Esmeralda</option>
                         <option value="bg-amber-500">Ámbar / Amarillo</option>
-                        <option value="bg-pink-500">Rosa</option>
                       </select>
                     </div>
 
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Enlace de Google Drive (Evidencia)</label>
                       <input 
                         type="url" 
@@ -459,192 +570,271 @@
             </div>
           )}
 
-          {/* LAYOUT PRINCIPAL (DOS COLUMNAS: CALENDARIO A LA IZQUIERDA Y PROGRESOS A LA DERECHA) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* ÁREA EXPORTABLE A PDF Y VISTA PRINCIPAL */}
+          <div id="exportable-area">
 
-            {/* SECCIÓN IZQUIERDA: CALENDARIO, ALERTAS Y REUNIONES (4 cols en pantalla grande) */}
-            <div className="lg:col-span-4 space-y-6">
-              
-              {/* COMPONENTE CALENDARIO */}
-              <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">
-                    📅 {monthNames[month]} {year}
-                  </h3>
-                  <div className="flex gap-1">
-                    <button onClick={prevMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">◄</button>
-                    <button onClick={nextMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">►</button>
+            {/* LAYOUT PRINCIPAL (DOS COLUMNAS) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+              {/* SECCIÓN IZQUIERDA: CALENDARIO, ALERTAS Y REUNIONES */}
+              <div className="lg:col-span-4 space-y-6">
+                
+                {/* CALENDARIO */}
+                <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">
+                      📅 {monthNames[month]} {year}
+                    </h3>
+                    <div className="flex gap-1">
+                      <button onClick={prevMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">◄</button>
+                      <button onClick={nextMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">►</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 text-center text-[10px] font-bold text-gray-400 mb-2">
+                    <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                    {calendarDays.map((d, index) => {
+                      if (d === null) return <div key={index} className="h-8"></div>;
+                      
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                      const hasEvent = events.some(e => e.date === dateStr);
+                      const hasAlert = events.some(e => e.date === dateStr && e.type === 'alerta');
+
+                      return (
+                        <div 
+                          key={index} 
+                          className={`h-8 flex flex-col items-center justify-center rounded-lg relative font-semibold transition ${
+                            hasEvent ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {d}
+                          {hasEvent && (
+                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${hasAlert ? 'bg-red-500' : 'bg-blue-600'}`}></span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Días de la semana */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-bold text-gray-400 mb-2">
-                  <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
-                </div>
-
-                {/* Grid del calendario */}
-                <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                  {calendarDays.map((d, index) => {
-                    if (d === null) return <div key={index} className="h-8"></div>;
-                    
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                    const hasEvent = events.some(e => e.date === dateStr);
-                    const hasAlert = events.some(e => e.date === dateStr && e.type === 'alerta');
-
-                    return (
-                      <div 
-                        key={index} 
-                        className={`h-8 flex flex-col items-center justify-center rounded-lg relative font-semibold transition ${
-                          hasEvent ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-gray-100 text-gray-700'
-                        }`}
+                {/* REUNIONES Y ALERTAS */}
+                <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
+                      🔔 Reuniones y Alertas
+                    </h3>
+                    {isAuthenticated && (
+                      <button 
+                        onClick={() => setIsAddingEvent(!isAddingEvent)}
+                        className="text-xs text-blue-600 hover:underline font-bold"
                       >
-                        {d}
-                        {hasEvent && (
-                          <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${hasAlert ? 'bg-red-500' : 'bg-blue-600'}`}></span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                        {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
+                      </button>
+                    )}
+                  </div>
 
-              {/* REUNIONES Y ALERTAS PROGRAMADAS */}
-              <div className="bg-white p-5 rounded-xl shadow-lg border border-gray-100">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                    🔔 Reuniones y Alertas
-                  </h3>
-                  {isAuthenticated && (
-                    <button 
-                      onClick={() => setIsAddingEvent(!isAddingEvent)}
-                      className="text-xs text-blue-600 hover:underline font-bold"
-                    >
-                      {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
-                    </button>
-                  )}
-                </div>
-
-                {/* Formulario para agregar evento (solo cuando esté autenticado y presione agendar) */}
-                {isAddingEvent && isAuthenticated && (
-                  <form onSubmit={handleSaveEvent} className="bg-blue-50 p-3 rounded-lg mb-4 text-xs space-y-2 border border-blue-200">
-                    <input 
-                      type="text" 
-                      placeholder="Título de la reunión / alerta" 
-                      value={eventTitle} 
-                      onChange={e => setEventTitle(e.target.value)}
-                      required 
-                      className="w-full p-1.5 border rounded"
-                    />
-                    <div className="flex gap-2">
-                      <input 
-                        type="date" 
-                        value={eventDate} 
-                        onChange={e => setEventDate(e.target.value)}
-                        required 
-                        className="w-1/2 p-1.5 border rounded"
-                      />
+                  {isAddingEvent && isAuthenticated && (
+                    <form onSubmit={handleSaveEvent} className="bg-blue-50 p-3 rounded-lg mb-4 text-xs space-y-2 border border-blue-200">
                       <input 
                         type="text" 
-                        placeholder="Ej: 10:00 AM" 
-                        value={eventTime} 
-                        onChange={e => setEventTime(e.target.value)}
-                        className="w-1/2 p-1.5 border rounded"
+                        placeholder="Título de la reunión / alerta" 
+                        value={eventTitle} 
+                        onChange={e => setEventTitle(e.target.value)}
+                        required 
+                        className="w-full p-1.5 border rounded"
                       />
-                    </div>
-                    <select 
-                      value={eventType} 
-                      onChange={e => setEventType(e.target.value)}
-                      className="w-full p-1.5 border rounded"
-                    >
-                      <option value="reunion">🤝 Reunión</option>
-                      <option value="alerta">⚠️ Alerta / Fecha Límite</option>
-                    </select>
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-1.5 rounded hover:bg-blue-700">
-                      Guardar Evento
-                    </button>
-                  </form>
-                )}
-
-                {/* Lista de Eventos */}
-                <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                  {events.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">No hay reuniones ni alertas agendadas.</p>
-                  ) : (
-                    events.sort((a,b) => new Date(a.date) - new Date(b.date)).map(ev => (
-                      <div 
-                        key={ev.id} 
-                        className={`p-3 rounded-lg border text-xs flex justify-between items-start transition ${
-                          ev.type === 'alerta' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-blue-50 border-blue-200 text-blue-900'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-bold flex items-center gap-1.5">
-                            <span>{ev.type === 'alerta' ? '⚠️' : '🤝'}</span>
-                            {ev.title}
-                          </div>
-                          <div className="text-[11px] opacity-80 mt-0.5">
-                            📆 {ev.date} — 🕒 {ev.time}
-                          </div>
-                        </div>
-                        {isAuthenticated && (
-                          <button 
-                            onClick={() => handleDeleteEvent(ev.id)}
-                            className="text-red-400 hover:text-red-600 font-bold ml-2"
-                            title="Eliminar evento"
-                          >
-                            ✕
-                          </button>
-                        )}
+                      <div className="flex gap-2">
+                        <input 
+                          type="date" 
+                          value={eventDate} 
+                          onChange={e => setEventDate(e.target.value)}
+                          required 
+                          className="w-1/2 p-1.5 border rounded"
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Ej: 10:00 AM" 
+                          value={eventTime} 
+                          onChange={e => setEventTime(e.target.value)}
+                          className="w-1/2 p-1.5 border rounded"
+                        />
                       </div>
-                    ))
+                      <select 
+                        value={eventType} 
+                        onChange={e => setEventType(e.target.value)}
+                        className="w-full p-1.5 border rounded"
+                      >
+                        <option value="reunion">🤝 Reunión</option>
+                        <option value="alerta">⚠️ Alerta / Fecha Límite</option>
+                      </select>
+                      <button type="submit" className="w-full bg-blue-600 text-white font-bold py-1.5 rounded hover:bg-blue-700">
+                        Guardar Evento
+                      </button>
+                    </form>
                   )}
+
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {events.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">No hay reuniones ni alertas agendadas.</p>
+                    ) : (
+                      events.sort((a,b) => new Date(a.date) - new Date(b.date)).map(ev => (
+                        <div 
+                          key={ev.id} 
+                          className={`p-3 rounded-lg border text-xs flex justify-between items-start transition ${
+                            ev.type === 'alerta' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-blue-50 border-blue-200 text-blue-900'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold flex items-center gap-1.5">
+                              <span>{ev.type === 'alerta' ? '⚠️' : '🤝'}</span>
+                              {ev.title}
+                            </div>
+                            <div className="text-[11px] opacity-80 mt-0.5">
+                              📆 {ev.date} — 🕒 {ev.time}
+                            </div>
+                          </div>
+                          {isAuthenticated && (
+                            <button 
+                              onClick={() => handleDeleteEvent(ev.id)}
+                              className="text-red-400 hover:text-red-600 font-bold ml-2"
+                              title="Eliminar evento"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
+
               </div>
 
-            </div>
-
-            {/* SECCIÓN DERECHA: LINEA DE TRABAJO INFOGRÁFICA (8 cols en pantalla grande) */}
-            <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow-lg relative">
-              <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-14 md:ml-24">
-                <div className="border-r border-gray-200 pr-1">20%</div>
-                <div className="border-r border-gray-200 pr-1">40%</div>
-                <div className="border-r border-gray-200 pr-1">60%</div>
-                <div className="border-r border-gray-200 pr-1">80%</div>
-                <div>100%</div>
-              </div>
-
-              <div className="space-y-6 relative">
-                {projects.map((project) => (
-                  <div key={project.id} className="flex items-center group relative">
-                    {/* Badge con ID */}
-                    <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow-md mr-3 group-hover:border-blue-500 transition-all">
-                      {project.id}
+              {/* SECCIÓN DERECHA: PROGRESOS (VISTA LÍNEA O KANBAN) */}
+              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100 relative">
+                
+                {/* VISTA 1: LÍNEA DE TRABAJO INFOGRÁFICA */}
+                {viewMode === 'linea' && (
+                  <div>
+                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-14 md:ml-24">
+                      <div className="border-r border-gray-200 pr-1">20%</div>
+                      <div className="border-r border-gray-200 pr-1">40%</div>
+                      <div className="border-r border-gray-200 pr-1">60%</div>
+                      <div className="border-r border-gray-200 pr-1">80%</div>
+                      <div>100%</div>
                     </div>
 
-                    {/* Barra de progreso */}
-                    <div 
-                      className="flex-grow bg-gray-200 h-8 md:h-10 rounded-full relative overflow-hidden cursor-pointer shadow-inner"
-                      onClick={() => setSelectedProject(project)}
-                    >
-                      <div 
-                        className={`h-full ${project.color} rounded-full transition-all duration-500 flex items-center px-4`}
-                        style={{ width: `${Math.max(project.percentage, 5)}%` }}
-                      >
-                        <span className="text-white font-bold text-xs whitespace-nowrap drop-shadow truncate">
-                          {project.title}
-                        </span>
-                      </div>
-                    </div>
+                    <div className="space-y-6 relative">
+                      {filteredProjects.length === 0 ? (
+                        <p className="text-center text-xs text-gray-400 py-8">No hay proyectos con el filtro seleccionado.</p>
+                      ) : (
+                        filteredProjects.map((project) => (
+                          <div key={project.id} className="flex items-center group relative">
+                            {/* Badge con ID */}
+                            <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow mr-3 group-hover:border-blue-500 transition-all">
+                              {project.id}
+                            </div>
 
-                    {/* Tooltip Hover */}
-                    <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow-lg pointer-events-none">
-                      Avance: {project.percentage}% (Haz clic para ver detalles y evidencias)
+                            {/* Barra de progreso */}
+                            <div 
+                              className="flex-grow bg-gray-200 h-8 md:h-10 rounded-full relative overflow-hidden cursor-pointer shadow-inner flex items-center"
+                              onClick={() => setSelectedProject(project)}
+                            >
+                              <div 
+                                className={`h-full ${project.color} rounded-full transition-all duration-500 flex items-center justify-between px-4`}
+                                style={{ width: `${Math.max(project.percentage, 5)}%` }}
+                              >
+                                <span className="text-white font-bold text-xs whitespace-nowrap drop-shadow truncate">
+                                  {project.title}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="ml-3 flex-shrink-0">
+                              {getStatusBadge(project.status)}
+                            </div>
+
+                            {/* Tooltip Hover */}
+                            <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow pointer-events-none">
+                              Avance: {project.percentage}% (Haz clic para ver detalles y evidencias)
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                )}
 
+                {/* VISTA 2: MATRIZ KANBAN ALTERNATIVA */}
+                {viewMode === 'kanban' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    
+                    {/* Columna: En Tiempo */}
+                    <div className="bg-green-50/50 p-4 rounded-xl border border-green-200">
+                      <h4 className="font-bold text-xs text-green-800 uppercase mb-3 flex items-center gap-1.5">
+                        🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
+                      </h4>
+                      <div className="space-y-3">
+                        {projects.filter(p=>p.status==='en-tiempo').map(p => (
+                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-green-400">
+                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
+                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
+                            <div className="mt-2 flex justify-between items-center">
+                              <span className="text-xs font-bold text-green-600">{p.percentage}%</span>
+                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Columna: En Riesgo */}
+                    <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-200">
+                      <h4 className="font-bold text-xs text-yellow-800 uppercase mb-3 flex items-center gap-1.5">
+                        🟡 En Riesgo ({projects.filter(p=>p.status==='en-riesgo').length})
+                      </h4>
+                      <div className="space-y-3">
+                        {projects.filter(p=>p.status==='en-riesgo').map(p => (
+                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-yellow-400">
+                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
+                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
+                            <div className="mt-2 flex justify-between items-center">
+                              <span className="text-xs font-bold text-yellow-600">{p.percentage}%</span>
+                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Columna: Detenido / Bloqueado */}
+                    <div className="bg-red-50/50 p-4 rounded-xl border border-red-200">
+                      <h4 className="font-bold text-xs text-red-800 uppercase mb-3 flex items-center gap-1.5">
+                        🔴 Detenido / Bloqueado ({projects.filter(p=>p.status==='detenido').length})
+                      </h4>
+                      <div className="space-y-3">
+                        {projects.filter(p=>p.status==='detenido').map(p => (
+                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-red-400">
+                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
+                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
+                            <div className="mt-2 flex justify-between items-center">
+                              <span className="text-xs font-bold text-red-600">{p.percentage}%</span>
+                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+
+            </div>
           </div>
 
           {/* MODAL DE DETALLES Y EVIDENCIAS DE GOOGLE DRIVE */}
@@ -657,7 +847,10 @@
                 >
                   ✕
                 </button>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">{selectedProject.title}</h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-xl font-bold text-gray-800">{selectedProject.title}</h2>
+                  {getStatusBadge(selectedProject.status)}
+                </div>
                 <div className="mb-4">
                   <span className="text-sm text-gray-500 font-semibold">Progreso actual: </span>
                   <span className="text-sm font-bold text-blue-600">{selectedProject.percentage}%</span>
