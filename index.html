@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Línea de Trabajo - Progress Block</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel CDN para transpilar JSX en el navegador -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const initialProjects = [
+      {
+        id: '01',
+        title: 'PROGRESS 01 - Implementación Backend',
+        percentage: 45,
+        color: 'bg-teal-400',
+        notes: 'Anotación importante: Faltan pruebas de integración.',
+        driveUrl: '',
+        updates: [
+          { date: '2026-09-10', text: 'Inicio de arquitectura' },
+          { date: '2026-09-14', text: 'Pruebas unitarias completadas' }
+        ]
+      },
+      {
+        id: '02',
+        title: 'PROGRESS 02 - Diseño UI/UX',
+        percentage: 70,
+        color: 'bg-orange-400',
+        notes: 'Revisar prototipo en Figma antes de enviar a producción.',
+        driveUrl: '',
+        updates: [{ date: '2026-09-12', text: 'Wireframes aprobados' }]
+      },
+      {
+        id: '03',
+        title: 'PROGRESS 03 - Configuración AWS',
+        percentage: 30,
+        color: 'bg-slate-700',
+        notes: 'Credenciales en AWS Secrets Manager.',
+        driveUrl: '',
+        updates: []
+      },
+      {
+        id: '04',
+        title: 'PROGRESS 04 - QA & Testing',
+        percentage: 85,
+        color: 'bg-lime-500',
+        notes: 'Faltan evidencias de pruebas de estrés.',
+        driveUrl: '',
+        updates: [{ date: '2026-09-15', text: 'Documento de casos de prueba subido' }]
+      },
+      {
+        id: '05',
+        title: 'PROGRESS 05 - Despliegue Final',
+        percentage: 10,
+        color: 'bg-rose-800',
+        notes: 'Pendiente la aprobación final del director.',
+        driveUrl: '',
+        updates: []
+      }
+    ];
+
+    function App() {
+      // Carga proyectos de localStorage o de la lista inicial
+      const [projects, setProjects] = useState(() => {
+        const saved = localStorage.getItem('workline_projects');
+        return saved ? JSON.parse(saved) : initialProjects;
+      });
+
+      const [selectedProject, setSelectedProject] = useState(null);
+      const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+      // Formulario de edición/creación
+      const [editId, setEditId] = useState(null);
+      const [title, setTitle] = useState('');
+      const [percentage, setPercentage] = useState(0);
+      const [color, setColor] = useState('bg-teal-400');
+      const [notes, setNotes] = useState('');
+      const [driveUrl, setDriveUrl] = useState('');
+      const [newUpdateText, setNewUpdateText] = useState('');
+
+      useEffect(() => {
+        localStorage.setItem('workline_projects', JSON.stringify(projects));
+      }, [projects]);
+
+      // Formatear la URL de Drive para asegurar que use el endpoint de vista previa /preview
+      const formatDriveUrl = (url) => {
+        if (!url) return '';
+        if (url.includes('/preview')) return url;
+        return url.replace(/\/view(\?.*)?$/, '/preview');
+      };
+
+      const handleSaveProject = (e) => {
+        e.preventDefault();
+        const formattedUrl = formatDriveUrl(driveUrl);
+
+        if (editId) {
+          setProjects(projects.map(p => {
+            if (p.id === editId) {
+              const updatedList = [...p.updates];
+              if (newUpdateText.trim()) {
+                updatedList.push({
+                  date: new Date().toISOString().split('T')[0],
+                  text: newUpdateText.trim()
+                });
+              }
+              return {
+                ...p,
+                title,
+                percentage: Number(percentage),
+                color,
+                notes,
+                driveUrl: formattedUrl,
+                updates: updatedList
+              };
+            }
+            return p;
+          }));
+        } else {
+          const nextNum = projects.length + 1;
+          const newId = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
+          const newProj = {
+            id: newId,
+            title: title || `PROGRESS ${newId} - Nuevo Pendiente`,
+            percentage: Number(percentage),
+            color,
+            notes,
+            driveUrl: formattedUrl,
+            updates: newUpdateText.trim() 
+              ? [{ date: new Date().toISOString().split('T')[0], text: newUpdateText.trim() }]
+              : []
+          };
+          setProjects([...projects, newProj]);
+        }
+
+        resetForm();
+      };
+
+      const handleEditClick = (p) => {
+        setEditId(p.id);
+        setTitle(p.title);
+        setPercentage(p.percentage);
+        setColor(p.color);
+        setNotes(p.notes || '');
+        setDriveUrl(p.driveUrl || '');
+        setNewUpdateText('');
+      };
+
+      const resetForm = () => {
+        setEditId(null);
+        setTitle('');
+        setPercentage(0);
+        setColor('bg-teal-400');
+        setNotes('');
+        setDriveUrl('');
+        setNewUpdateText('');
+      };
+
+      return (
+        <div className="p-8 font-sans">
+          <header className="text-center mb-8 relative max-w-5xl mx-auto">
+            <h1 className="text-4xl font-extrabold tracking-wider text-gray-800 uppercase">
+              Line Progress Block
+            </h1>
+            <p className="text-gray-500 tracking-widest text-sm font-semibold mt-1">
+              INFOGRAPHIC WORKFLOW & EVOLUCIÓN DE PROYECTOS
+            </p>
+            
+            <button 
+              onClick={() => setIsAdminOpen(!isAdminOpen)}
+              className="absolute right-0 top-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded-lg shadow transition"
+            >
+              {isAdminOpen ? 'Ocultar Panel Admin' : '⚙️ Panel Administrativo'}
+            </button>
+          </header>
+
+          {/* PANEL ADMINISTRATIVO */}
+          {isAdminOpen && (
+            <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md border border-blue-200 mb-8">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
+                {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
+              </h2>
+              <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Título / Descripción</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)} 
+                    placeholder="Ej. PROGRESS 06 - Fase de Pruebas" 
+                    className="w-full border rounded p-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max="100" 
+                    value={percentage} 
+                    onChange={e => setPercentage(e.target.value)} 
+                    className="w-full border rounded p-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra</label>
+                  <select 
+                    value={color} 
+                    onChange={e => setColor(e.target.value)}
+                    className="w-full border rounded p-2 text-sm"
+                  >
+                    <option value="bg-teal-400">Turquesa</option>
+                    <option value="bg-orange-400">Naranja</option>
+                    <option value="bg-slate-700">Azul Oscuro / Slate</option>
+                    <option value="bg-lime-500">Verde Lima</option>
+                    <option value="bg-rose-800">Granate / Rojo</option>
+                    <option value="bg-purple-600">Púrpura</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Enlace de Google Drive (Evidencia)</label>
+                  <input 
+                    type="url" 
+                    value={driveUrl} 
+                    onChange={e => setDriveUrl(e.target.value)} 
+                    placeholder="https://drive.google.com/file/d/.../view" 
+                    className="w-full border rounded p-2 text-sm"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Anotaciones Importantes</label>
+                  <textarea 
+                    value={notes} 
+                    onChange={e => setNotes(e.target.value)} 
+                    rows="2" 
+                    placeholder="Comentarios clave para los superiores..." 
+                    className="w-full border rounded p-2 text-sm"
+                  ></textarea>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Agregar Nueva Actualización de Avance</label>
+                  <input 
+                    type="text" 
+                    value={newUpdateText} 
+                    onChange={e => setNewUpdateText(e.target.value)} 
+                    placeholder="Ej. Se completó el diseño de módulos principales." 
+                    className="w-full border rounded p-2 text-sm"
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex justify-end gap-2 mt-2">
+                  {editId && (
+                    <button 
+                      type="button" 
+                      onClick={resetForm}
+                      className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                  <button 
+                    type="submit" 
+                    className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold"
+                  >
+                    {editId ? 'Guardar Cambios' : 'Anexar Pendiente'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Lista para seleccionar y editar rápido */}
+              <div className="mt-6 border-t pt-4">
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar:</h3>
+                <div className="flex flex-wrap gap-2">
+                  {projects.map(p => (
+                    <button 
+                      key={p.id} 
+                      onClick={() => handleEditClick(p)}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded"
+                    >
+                      ✏️ {p.id} - {p.title.substring(0, 20)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA PRINCIPAL (LINEA DE TRABAJO - ESTILO INFOGRAFÍA) */}
+          <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl shadow-lg relative">
+            <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-16 md:ml-32">
+              <div className="border-r border-gray-200 pr-2">20%</div>
+              <div className="border-r border-gray-200 pr-2">40%</div>
+              <div className="border-r border-gray-200 pr-2">60%</div>
+              <div className="border-r border-gray-200 pr-2">80%</div>
+              <div>100%</div>
+            </div>
+
+            <div className="space-y-6 relative">
+              {projects.map((project) => (
+                <div key={project.id} className="flex items-center group relative">
+                  <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-sm md:text-lg text-gray-700 shadow-md mr-4 group-hover:border-blue-500 transition-all">
+                    {project.id}
+                  </div>
+
+                  <div 
+                    className="flex-grow bg-gray-200 h-8 md:h-10 rounded-full relative overflow-hidden cursor-pointer shadow-inner"
+                    onClick={() => setSelectedProject(project)}
+                  >
+                    <div 
+                      className={`h-full ${project.color} rounded-full transition-all duration-500 flex items-center px-4`}
+                      style={{ width: `${Math.max(project.percentage, 5)}%` }}
+                    >
+                      <span className="text-white font-bold text-xs whitespace-nowrap drop-shadow">
+                        {project.title}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="absolute left-36 md:left-48 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow-lg pointer-events-none">
+                    Avance: {project.percentage}% (Haz clic para ver detalles y evidencias)
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* MODAL DE DETALLES Y EVIDENCIAS EN DRIVE (VISUALIZACIÓN DE SUPERIORES) */}
+          {selectedProject && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                <button 
+                  onClick={() => setSelectedProject(null)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl"
+                >
+                  ✕
+                </button>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">{selectedProject.title}</h2>
+                <div className="mb-4">
+                  <span className="text-sm text-gray-500 font-semibold">Progreso actual: </span>
+                  <span className="text-sm font-bold text-blue-600">{selectedProject.percentage}%</span>
+                </div>
+
+                {selectedProject.notes && (
+                  <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
+                    <h4 className="text-xs font-bold text-yellow-800 uppercase">Anotaciones Importantes:</h4>
+                    <p className="text-sm text-yellow-900">{selectedProject.notes}</p>
+                  </div>
+                )}
+
+                {/* Historial de Actualizaciones */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
+                  {selectedProject.updates && selectedProject.updates.length > 0 ? (
+                    <ul className="space-y-2">
+                      {selectedProject.updates.map((up, idx) => (
+                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex gap-2">
+                          <span className="font-semibold text-gray-500">{up.date}:</span>
+                          <span className="text-gray-700">{up.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">No hay registros de actualización previos.</p>
+                  )}
+                </div>
+
+                {/* Vista previa de Google Drive */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">Archivo Adjunto / Evidencia (Google Drive):</h4>
+                  {selectedProject.driveUrl ? (
+                    <iframe 
+                      src={selectedProject.driveUrl} 
+                      className="w-full h-64 border border-gray-300 rounded-lg"
+                      title="Google Drive Preview"
+                    ></iframe>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">No hay archivos adjuntos agregados para este avance.</p>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <button 
+                    onClick={() => setSelectedProject(null)}
+                    className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
