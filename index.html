@@ -29,7 +29,7 @@
         title: 'PROGRESS 01 - Implementación Backend',
         percentage: 45,
         color: 'bg-teal-400',
-        status: 'en-tiempo', // en-tiempo, en-riesgo, detenido, completado
+        status: 'en-tiempo', // en-tiempo, demorado, detenido, completado
         notes: 'Anotación importante: Faltan pruebas de integración.',
         driveUrl: '',
         updates: [
@@ -52,7 +52,7 @@
         title: 'PROGRESS 03 - Configuración AWS',
         percentage: 30,
         color: 'bg-slate-700',
-        status: 'en-riesgo',
+        status: 'demorado',
         notes: 'Credenciales en AWS Secrets Manager.',
         driveUrl: '',
         updates: []
@@ -97,8 +97,8 @@
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
-      const [viewMode, setViewMode] = useState('linea'); // 'linea' o 'kanban'
-      const [statusFilter, setStatusFilter] = useState('todos'); // 'todos', 'en-tiempo', 'en-riesgo', 'detenido', 'completado'
+      const [viewMode, setViewMode] = useState('linea'); 
+      const [statusFilter, setStatusFilter] = useState('todos'); 
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -251,7 +251,6 @@
         setNewUpdateText('');
       };
 
-      // Exportar a PDF
       const handleExportPDF = () => {
         const element = document.getElementById('exportable-area');
         const opt = {
@@ -264,7 +263,6 @@
         html2pdf().set(opt).from(element).save();
       };
 
-      // Calendario Lógica
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
@@ -286,7 +284,6 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      // Filtrado de Proyectos
       const filteredProjects = projects.filter(p => {
         if (statusFilter === 'todos') return true;
         return p.status === statusFilter;
@@ -295,7 +292,7 @@
       const getStatusBadge = (st) => {
         switch(st) {
           case 'en-tiempo': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-300">🟢 En Tiempo</span>;
-          case 'en-riesgo': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">🟡 En Riesgo</span>;
+          case 'demorado':  return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">🟡 Demorado</span>;
           case 'detenido':  return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">🔴 Detenido</span>;
           case 'completado':return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">🔵 Completado</span>;
           default: return null;
@@ -340,7 +337,7 @@
             </div>
           </header>
 
-          {/* BARRA DE HERRAMIENTAS EJECUTIVAS (FILTROS, VISTAS Y PDF) */}
+          {/* BARRA DE HERRAMIENTAS EJECUTIVAS */}
           <div className="bg-white p-3 rounded-xl shadow border border-gray-200 mb-6 flex flex-wrap items-center justify-between gap-3">
             
             {/* Filtros por Semáforo */}
@@ -359,10 +356,10 @@
                 🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
               </button>
               <button 
-                onClick={() => setStatusFilter('en-riesgo')} 
-                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-riesgo' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}
+                onClick={() => setStatusFilter('demorado')} 
+                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'demorado' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}
               >
-                🟡 En Riesgo ({projects.filter(p=>p.status==='en-riesgo').length})
+                🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
               </button>
               <button 
                 onClick={() => setStatusFilter('detenido')} 
@@ -474,7 +471,7 @@
                         className="w-full border rounded p-2 text-sm"
                       >
                         <option value="en-tiempo">🟢 En Tiempo</option>
-                        <option value="en-riesgo">🟡 En Riesgo</option>
+                        <option value="demorado">🟡 Demorado</option>
                         <option value="detenido">🔴 Detenido</option>
                         <option value="completado">🔵 Completado</option>
                       </select>
@@ -572,8 +569,6 @@
 
           {/* ÁREA EXPORTABLE A PDF Y VISTA PRINCIPAL */}
           <div id="exportable-area">
-
-            {/* LAYOUT PRINCIPAL (DOS COLUMNAS) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
               {/* SECCIÓN IZQUIERDA: CALENDARIO, ALERTAS Y REUNIONES */}
@@ -791,13 +786,13 @@
                       </div>
                     </div>
 
-                    {/* Columna: En Riesgo */}
+                    {/* Columna: Demorado */}
                     <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-200">
                       <h4 className="font-bold text-xs text-yellow-800 uppercase mb-3 flex items-center gap-1.5">
-                        🟡 En Riesgo ({projects.filter(p=>p.status==='en-riesgo').length})
+                        🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
                       </h4>
                       <div className="space-y-3">
-                        {projects.filter(p=>p.status==='en-riesgo').map(p => (
+                        {projects.filter(p=>p.status==='demorado').map(p => (
                           <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-yellow-400">
                             <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
                             <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
