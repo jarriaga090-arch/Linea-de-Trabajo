@@ -4,14 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Línea de Progreso - Secretaría de Turismo y OCV</title>
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React & ReactDOM CDN -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <!-- Babel CDN -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- html2pdf.js para exportar a PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -23,47 +19,25 @@
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
-    // URL de tu Google Apps Script
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzg0AF8VHKm9l-lzIkXyW80Kjgy_ViqBbeDpIZdmNVfGhii4v2xN1kDxUe7fgwk50BF3Q/exec";
 
-    const initialProjects = [
-      {
-        id: '01',
-        title: 'PROGRESS 01 - Implementación Backend',
-        percentage: 45,
-        color: 'bg-teal-400',
-        status: 'en-tiempo',
-        notes: 'Anotación importante: Faltan pruebas de integración.',
-        driveUrl: '',
-        updates: [
-          { date: '2026-09-10', text: 'Inicio de arquitectura' },
-          { date: '2026-09-14', text: 'Pruebas unitarias completadas' }
-        ]
-      }
-    ];
-
-    const initialEvents = [
-      { id: 1, title: 'Reunión de Avance con Directores', date: '2026-09-18', time: '10:00 AM', type: 'reunion' }
-    ];
-
     function App() {
+      // Iniciamos sin proyectos predeterminados (desde cero)
       const [projects, setProjects] = useState(() => {
         const saved = localStorage.getItem('workline_projects');
-        return saved ? JSON.parse(saved) : initialProjects;
+        return saved ? JSON.parse(saved) : [];
       });
 
       const [events, setEvents] = useState(() => {
         const savedEvents = localStorage.getItem('workline_events');
-        return savedEvents ? JSON.parse(savedEvents) : initialEvents;
+        return savedEvents ? JSON.parse(savedEvents) : [];
       });
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [viewMode, setViewMode] = useState('linea'); 
       const [statusFilter, setStatusFilter] = useState('todos'); 
-      const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-      const [isDeletingProject, setIsDeletingProject] = useState(false);
-      const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+      const [isLoading, setIsLoading] = useState(false);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -89,7 +63,6 @@
       const [eventTime, setEventTime] = useState('');
       const [eventType, setEventType] = useState('reunion');
 
-      // Estado del Calendario
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
       useEffect(() => {
@@ -118,125 +91,28 @@
         resetForm();
       };
 
-      // Proceso de Creación Única en Lote
-      const handleBatchCreateFolders = async () => {
-        if (!APPS_SCRIPT_URL) return;
-        setIsBatchProcessing(true);
-        try {
-          const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'createBatchFolders', projects: projects }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-          });
-          const result = await response.json();
-          setIsBatchProcessing(false);
-          if (result.status === "success" && result.projects) {
-            setProjects(result.projects);
-            alert("¡Éxito! Se generaron las carpetas en Google Drive para todas las actividades existentes.");
-          }
-        } catch (error) {
-          console.error("Error en proceso por lote:", error);
-          setIsBatchProcessing(false);
-          alert("Ocurrió un error al intentar generar las carpetas.");
-        }
-      };
-
-      // Crear Carpeta Individual con el nombre de la actividad
-      const createDriveFolder = async (activityName) => {
-        if (!APPS_SCRIPT_URL) return null;
-        try {
-          setIsCreatingFolder(true);
-          const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ 
-              action: 'createFolder', 
-              activityName: activityName,
-              title: activityName 
-            }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-          });
-          const result = await response.json();
-          setIsCreatingFolder(false);
-          if (result.status === "success") {
-            return result.folderUrl;
-          }
-          return null;
-        } catch (error) {
-          console.error("Error creando carpeta en Google Drive:", error);
-          setIsCreatingFolder(false);
-          return null;
-        }
-      };
-
-      // Eliminar Carpeta de Google Drive
-      const deleteDriveFolder = async (folderUrl) => {
-        if (!APPS_SCRIPT_URL || !folderUrl) return;
-        try {
-          await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'deleteFolder', folderUrl: folderUrl }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-          });
-        } catch (error) {
-          console.error("Error eliminando carpeta en Google Drive:", error);
-        }
-      };
-
-      const handleDeleteProject = async (projectToDelete) => {
-        const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar el pendiente "${projectToDelete.title}"? Esto también eliminará su carpeta en Google Drive.`);
-        if (!confirmDelete) return;
-
-        setIsDeletingProject(true);
-
-        if (projectToDelete.driveUrl) {
-          await deleteDriveFolder(projectToDelete.driveUrl);
-        }
-
-        setProjects(projects.filter(p => p.id !== projectToDelete.id));
-
-        if (selectedProject && selectedProject.id === projectToDelete.id) {
-          setSelectedProject(null);
-        }
-
-        if (editId === projectToDelete.id) {
-          resetForm();
-        }
-
-        setIsDeletingProject(false);
-      };
-
-      const handleUpdateChange = (index, newText) => {
-        const updated = [...updatesList];
-        updated[index].text = newText;
-        setUpdatesList(updated);
-      };
-
-      const handleDeleteUpdate = (index) => {
-        setUpdatesList(updatesList.filter((_, i) => i !== index));
-      };
-
-      const handleDeleteUpdateFromModal = (projectId, updateIndex) => {
-        setProjects(projects.map(p => {
-          if (p.id === projectId) {
-            const newUpdates = p.updates.filter((_, i) => i !== updateIndex);
-            const updatedProject = { ...p, updates: newUpdates };
-            if (selectedProject && selectedProject.id === projectId) {
-              setSelectedProject(updatedProject);
-            }
-            return updatedProject;
-          }
-          return p;
-        }));
-      };
-
+      // Guardar / Crear Proyecto
       const handleSaveProject = async (e) => {
         e.preventDefault();
+        if (!title.trim()) return;
+
+        setIsLoading(true);
         let finalDriveUrl = driveUrl;
 
+        // Si es un proyecto nuevo y no tiene URL, la creamos en Google Drive
         if (!editId && !finalDriveUrl.trim()) {
-          const autoUrl = await createDriveFolder(title);
-          if (autoUrl) {
-            finalDriveUrl = autoUrl;
+          try {
+            const response = await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              body: JSON.stringify({ activityName: title }),
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+            const result = await response.json();
+            if (result.status === "success") {
+              finalDriveUrl = result.folderUrl;
+            }
+          } catch (error) {
+            console.error("Error al crear carpeta:", error);
           }
         }
 
@@ -269,7 +145,7 @@
           const newId = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
           const newProj = {
             id: newId,
-            title: title || `PROGRESS ${newId} - Nuevo Pendiente`,
+            title: title.trim(),
             percentage: Number(percentage),
             color,
             status,
@@ -280,30 +156,33 @@
           setProjects([...projects, newProj]);
         }
 
+        setIsLoading(false);
         resetForm();
       };
 
-      const handleSaveEvent = (e) => {
-        e.preventDefault();
-        if (!eventTitle || !eventDate) return;
+      // Eliminar Proyecto y Carpeta
+      const handleDeleteProject = async (projectToDelete) => {
+        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta en Drive?`)) return;
 
-        const newEv = {
-          id: Date.now(),
-          title: eventTitle,
-          date: eventDate,
-          time: eventTime || 'Todo el día',
-          type: eventType
-        };
+        setIsLoading(true);
 
-        setEvents([...events, newEv]);
-        setEventTitle('');
-        setEventDate('');
-        setEventTime('');
-        setIsAddingEvent(false);
-      };
+        if (projectToDelete.driveUrl) {
+          try {
+            await fetch(APPS_SCRIPT_URL, {
+              method: 'POST',
+              body: JSON.stringify({ action: 'delete', folderUrl: projectToDelete.driveUrl }),
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            });
+          } catch (error) {
+            console.error("Error al eliminar carpeta:", error);
+          }
+        }
 
-      const handleDeleteEvent = (id) => {
-        setEvents(events.filter(e => e.id !== id));
+        setProjects(projects.filter(p => p.id !== projectToDelete.id));
+        if (selectedProject?.id === projectToDelete.id) setSelectedProject(null);
+        if (editId === projectToDelete.id) resetForm();
+
+        setIsLoading(false);
       };
 
       const handleEditClick = (p) => {
@@ -330,20 +209,38 @@
         setNewUpdateText('');
       };
 
-      const handleExportPDF = () => {
-        const element = document.getElementById('exportable-area');
-        const opt = {
-          margin:       0.3,
-          filename:     `Reporte_Ejecutivo_Turismo_OCV_${new Date().toISOString().split('T')[0]}.pdf`,
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2 },
-          jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+      const handleSaveEvent = (e) => {
+        e.preventDefault();
+        if (!eventTitle || !eventDate) return;
+        const newEv = {
+          id: Date.now(),
+          title: eventTitle,
+          date: eventDate,
+          time: eventTime || 'Todo el día',
+          type: eventType
         };
-        html2pdf().set(opt).from(element).save();
+        setEvents([...events, newEv]);
+        setEventTitle('');
+        setEventDate('');
+        setEventTime('');
+        setIsAddingEvent(false);
       };
 
-      const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-      const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+      const handleDeleteEvent = (id) => setEvents(events.filter(e => e.id !== id));
+
+      const handleExportPDF = () => {
+        const element = document.getElementById('exportable-area');
+        html2pdf().set({
+          margin: 0.3,
+          filename: `Reporte_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
+        }).from(element).save();
+      };
+
+      const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+      const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
 
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
@@ -353,20 +250,13 @@
       const firstDay = getFirstDayOfMonth(year, month);
 
       const calendarDays = [];
-      for (let i = 0; i < firstDay; i++) {
-        calendarDays.push(null);
-      }
-      for (let d = 1; d <= daysInMonth; d++) {
-        calendarDays.push(d);
-      }
+      for (let i = 0; i < firstDay; i++) calendarDays.push(null);
+      for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
 
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      const filteredProjects = projects.filter(p => {
-        if (statusFilter === 'todos') return true;
-        return p.status === statusFilter;
-      });
+      const filteredProjects = projects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
 
       const getStatusBadge = (st) => {
         switch(st) {
@@ -380,7 +270,7 @@
 
       return (
         <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-          {/* HEADER PRINCIPAL */}
+          {/* HEADER */}
           <header className="text-center mb-6 relative">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-gray-800 uppercase">
               Línea de Progreso de Proyectos 2026
@@ -388,90 +278,59 @@
             <p className="text-gray-500 tracking-widest text-xs md:text-sm font-semibold mt-1 uppercase">
               Secretaría de Turismo y OCV
             </p>
-            
             <div className="absolute right-0 top-0 flex gap-2">
               {isAuthenticated ? (
                 <>
-                  <button 
-                    onClick={() => setIsAdminOpen(!isAdminOpen)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition"
-                  >
+                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition">
                     {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
                   </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition"
-                  >
+                  <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition">
                     🔒 Salir
                   </button>
                 </>
               ) : (
-                <button 
-                  onClick={() => setIsAdminOpen(!isAdminOpen)}
-                  className="bg-gray-800 hover:bg-gray-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow transition"
-                >
+                <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-gray-800 hover:bg-gray-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow transition">
                   🔐 Acceso Admin
                 </button>
               )}
             </div>
           </header>
 
-          {/* BARRA DE HERRAMIENTAS EJECUTIVAS */}
+          {/* BARRA DE HERRAMIENTAS */}
           <div className="bg-white p-3 rounded-xl shadow border border-gray-200 mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-gray-500 uppercase">Filtro Estado:</span>
-              <button 
-                onClick={() => setStatusFilter('todos')} 
-                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'todos' ? 'bg-gray-800 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
-              >
+              <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'todos' ? 'bg-gray-800 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
                 Todos ({projects.length})
               </button>
-              <button 
-                onClick={() => setStatusFilter('en-tiempo')} 
-                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-tiempo' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
-              >
+              <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-tiempo' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
                 🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
               </button>
-              <button 
-                onClick={() => setStatusFilter('demorado')} 
-                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'demorado' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}
-              >
+              <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'demorado' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>
                 🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
               </button>
-              <button 
-                onClick={() => setStatusFilter('detenido')} 
-                className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'detenido' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}
-              >
+              <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'detenido' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>
                 🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
               </button>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
-                <button 
-                  onClick={() => setViewMode('linea')}
-                  className={`px-3 py-1 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}
-                >
+                <button onClick={() => setViewMode('linea')} className={`px-3 py-1 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}>
                   📊 Vista Línea
                 </button>
-                <button 
-                  onClick={() => setViewMode('kanban')}
-                  className={`px-3 py-1 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}
-                >
+                <button onClick={() => setViewMode('kanban')} className={`px-3 py-1 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}>
                   📋 Vista Kanban
                 </button>
               </div>
 
-              <button 
-                onClick={handleExportPDF}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1"
-              >
+              <button onClick={handleExportPDF} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
                 📄 Exportar PDF
               </button>
             </div>
           </div>
 
-          {/* PANEL ADMINISTRATIVO */}
+          {/* PANEL ADMIN */}
           {isAdminOpen && (
             <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md border border-blue-200 mb-8">
               {!isAuthenticated ? (
@@ -481,86 +340,36 @@
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Usuario</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={loginUser} 
-                        onChange={e => setLoginUser(e.target.value)} 
-                        className="w-full border rounded p-2 text-sm" 
-                        placeholder="Ingresa tu usuario"
-                      />
+                      <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border rounded p-2 text-sm" placeholder="Ingresa tu usuario" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Contraseña</label>
-                      <input 
-                        type="password" 
-                        required 
-                        value={loginPass} 
-                        onChange={e => setLoginPass(e.target.value)} 
-                        className="w-full border rounded p-2 text-sm" 
-                        placeholder="Ingresa tu contraseña"
-                      />
+                      <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border rounded p-2 text-sm" placeholder="Ingresa tu contraseña" />
                     </div>
-                    <button 
-                      type="submit" 
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition"
-                    >
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition">
                       Ingresar
                     </button>
                   </form>
                 </div>
               ) : (
                 <div>
-                  {/* BOTÓN DE CREACIÓN ÚNICA EN LOTE PARA PROYECTOS PREVIOS */}
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-xs text-blue-900 uppercase">Generador de Carpetas Iniciales (1 Sola Vez)</h3>
-                      <p className="text-xs text-blue-700">Haz clic aquí para crear en Google Drive las carpetas de todos los pendientes ya existentes en tu lista.</p>
-                    </div>
-                    <button 
-                      onClick={handleBatchCreateFolders}
-                      disabled={isBatchProcessing}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center gap-2 flex-shrink-0"
-                    >
-                      {isBatchProcessing ? '⌛ Generando...' : '📁 Generar Carpetas Faltantes'}
-                    </button>
-                  </div>
-
                   <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
                     {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
                   </h2>
                   <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Título / Descripción</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={title} 
-                        onChange={e => setTitle(e.target.value)} 
-                        placeholder="Ej. PROGRESS 06 - Fase de Pruebas" 
-                        className="w-full border rounded p-2 text-sm"
-                      />
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Título / Descripción de la Actividad</label>
+                      <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Implementación CRM Odoo" className="w-full border rounded p-2 text-sm" />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="100" 
-                        value={percentage} 
-                        onChange={e => setPercentage(e.target.value)} 
-                        className="w-full border rounded p-2 text-sm"
-                      />
+                      <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border rounded p-2 text-sm" />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Estado (Semáforo Ejecutivo)</label>
-                      <select 
-                        value={status} 
-                        onChange={e => setStatus(e.target.value)}
-                        className="w-full border rounded p-2 text-sm"
-                      >
+                      <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border rounded p-2 text-sm">
                         <option value="en-tiempo">🟢 En Tiempo</option>
                         <option value="demorado">🟡 Demorado</option>
                         <option value="detenido">🔴 Detenido</option>
@@ -570,11 +379,7 @@
 
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra</label>
-                      <select 
-                        value={color} 
-                        onChange={e => setColor(e.target.value)}
-                        className="w-full border rounded p-2 text-sm"
-                      >
+                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border rounded p-2 text-sm">
                         <option value="bg-teal-400">Turquesa</option>
                         <option value="bg-orange-400">Naranja</option>
                         <option value="bg-slate-700">Azul Oscuro / Slate</option>
@@ -583,87 +388,25 @@
                         <option value="bg-sky-400">Azul Claro</option>
                         <option value="bg-indigo-600">Índigo / Violeta</option>
                         <option value="bg-emerald-500">Verde Esmeralda</option>
-                        <option value="bg-amber-500">Ámbar / Amarillo</option>
-                        <option value="bg-purple-600">Púrpura</option>
                       </select>
                     </div>
 
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                        Enlace de Carpeta de Google Drive
+                        Enlace de Carpeta en Google Drive (Se creará automáticamente al guardar si está vacío)
                       </label>
-                      <input 
-                        type="url" 
-                        value={driveUrl} 
-                        onChange={e => setDriveUrl(e.target.value)} 
-                        placeholder="Se creará automáticamente o puedes pegar una liga existente..." 
-                        className="w-full border rounded p-2 text-sm"
-                      />
+                      <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border rounded p-2 text-sm" />
                     </div>
 
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Anotaciones Importantes</label>
-                      <textarea 
-                        value={notes} 
-                        onChange={e => setNotes(e.target.value)} 
-                        rows="2" 
-                        placeholder="Comentarios clave para los superiores..." 
-                        className="w-full border rounded p-2 text-sm"
-                      ></textarea>
-                    </div>
-
-                    <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
-                        Historial de Actualizaciones (Editar / Eliminar)
-                      </label>
-                      {updatesList.length === 0 ? (
-                        <p className="text-xs text-gray-400 italic mb-2">No hay actualizaciones en este proyecto.</p>
-                      ) : (
-                        <div className="space-y-2 mb-3">
-                          {updatesList.map((up, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500 w-24 flex-shrink-0">{up.date}:</span>
-                              <input 
-                                type="text" 
-                                value={up.text} 
-                                onChange={e => handleUpdateChange(idx, e.target.value)} 
-                                className="w-full border rounded p-1 text-xs"
-                              />
-                              <button 
-                                type="button" 
-                                onClick={() => handleDeleteUpdate(idx)}
-                                className="text-red-500 hover:text-red-700 font-bold text-sm px-2"
-                                title="Eliminar actualización"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
-                      <input 
-                        type="text" 
-                        value={newUpdateText} 
-                        onChange={e => setNewUpdateText(e.target.value)} 
-                        placeholder="Ej. Se completó el diseño de módulos principales." 
-                        className="w-full border rounded p-2 text-sm"
-                      />
+                      <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border rounded p-2 text-sm"></textarea>
                     </div>
 
                     <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
                       <div>
                         {editId && (
-                          <button 
-                            type="button" 
-                            disabled={isDeletingProject}
-                            onClick={() => {
-                              const proj = projects.find(p => p.id === editId);
-                              if (proj) handleDeleteProject(proj);
-                            }}
-                            className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded font-bold transition flex items-center gap-1"
-                          >
+                          <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded font-bold transition">
                             🗑️ Eliminar Pendiente y Carpeta
                           </button>
                         )}
@@ -671,63 +414,47 @@
 
                       <div className="flex gap-2">
                         {editId && (
-                          <button 
-                            type="button" 
-                            onClick={resetForm}
-                            className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500"
-                          >
+                          <button type="button" onClick={resetForm} className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500">
                             Cancelar
                           </button>
                         )}
-                        <button 
-                          type="submit" 
-                          disabled={isCreatingFolder || isDeletingProject}
-                          className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2"
-                        >
-                          {isCreatingFolder && <span className="animate-spin">📁</span>}
-                          {isCreatingFolder ? 'Creando Carpeta...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
+                        <button type="submit" disabled={isLoading} className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2">
+                          {isLoading && <span className="animate-spin">⏳</span>}
+                          {isLoading ? 'Procesando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
                         </button>
                       </div>
                     </div>
                   </form>
 
-                  {/* LISTA DE BOTONES DE EDICIÓN Y ELIMINACIÓN RÁPIDA */}
-                  <div className="mt-6 border-t pt-4">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {projects.map(p => (
-                        <div key={p.id} className="inline-flex items-center border rounded bg-gray-50 overflow-hidden shadow-sm">
-                          <button 
-                            onClick={() => handleEditClick(p)}
-                            className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 font-semibold text-gray-700 border-r"
-                          >
-                            ✏️ {p.id} - {p.title.substring(0, 18)}...
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteProject(p)}
-                            disabled={isDeletingProject}
-                            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 font-bold"
-                            title="Eliminar pendiente y su carpeta"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      ))}
+                  {/* LISTA DE PENDIENTES CREADOS */}
+                  {projects.length > 0 && (
+                    <div className="mt-6 border-t pt-4">
+                      <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {projects.map(p => (
+                          <div key={p.id} className="inline-flex items-center border rounded bg-gray-50 overflow-hidden shadow-sm">
+                            <button onClick={() => handleEditClick(p)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 font-semibold text-gray-700 border-r">
+                              ✏️ #{p.id} - {p.title.substring(0, 20)}...
+                            </button>
+                            <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 font-bold" title="Eliminar pendiente y su carpeta">
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* ÁREA EXPORTABLE A PDF Y VISTA PRINCIPAL */}
+          {/* VISTA PRINCIPAL */}
           <div id="exportable-area">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-              {/* SECCIÓN IZQUIERDA: CALENDARIO, ALERTAS Y REUNIONES */}
+              {/* CALENDARIO & REUNIONES */}
               <div className="lg:col-span-4 space-y-6">
-                
-                {/* CALENDARIO */}
                 <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">
@@ -746,332 +473,127 @@
                   <div className="grid grid-cols-7 gap-1 text-center text-xs">
                     {calendarDays.map((d, index) => {
                       if (d === null) return <div key={index} className="h-8"></div>;
-                      
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                       const hasEvent = events.some(e => e.date === dateStr);
-                      const hasAlert = events.some(e => e.date === dateStr && e.type === 'alerta');
-
                       return (
-                        <div 
-                          key={index} 
-                          className={`h-8 flex flex-col items-center justify-center rounded-lg relative font-semibold transition ${
-                            hasEvent ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
+                        <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-lg relative font-semibold transition ${hasEvent ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-gray-100 text-gray-700'}`}>
                           {d}
-                          {hasEvent && (
-                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${hasAlert ? 'bg-red-500' : 'bg-blue-600'}`}></span>
-                          )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* REUNIONES Y ALERTAS */}
                 <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                      🔔 Reuniones y Alertas
-                    </h3>
+                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
                     {isAuthenticated && (
-                      <button 
-                        onClick={() => setIsAddingEvent(!isAddingEvent)}
-                        className="text-xs text-blue-600 hover:underline font-bold"
-                      >
+                      <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-blue-600 font-bold">
                         {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
                       </button>
                     )}
                   </div>
 
                   {isAddingEvent && isAuthenticated && (
-                    <form onSubmit={handleSaveEvent} className="bg-blue-50 p-3 rounded-lg mb-4 text-xs space-y-2 border border-blue-200">
-                      <input 
-                        type="text" 
-                        placeholder="Título de la reunión / alerta" 
-                        value={eventTitle} 
-                        onChange={e => setEventTitle(e.target.value)}
-                        required 
-                        className="w-full p-1.5 border rounded"
-                      />
-                      <div className="flex gap-2">
-                        <input 
-                          type="date" 
-                          value={eventDate} 
-                          onChange={e => setEventDate(e.target.value)}
-                          required 
-                          className="w-1/2 p-1.5 border rounded"
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Ej: 10:00 AM" 
-                          value={eventTime} 
-                          onChange={e => setEventTime(e.target.value)}
-                          className="w-1/2 p-1.5 border rounded"
-                        />
-                      </div>
-                      <select 
-                        value={eventType} 
-                        onChange={e => setEventType(e.target.value)}
-                        className="w-full p-1.5 border rounded"
-                      >
-                        <option value="reunion">🤝 Reunión</option>
-                        <option value="alerta">⚠️ Alerta / Fecha Límite</option>
-                      </select>
-                      <button type="submit" className="w-full bg-blue-600 text-white font-bold py-1.5 rounded hover:bg-blue-700">
-                        Guardar Evento
-                      </button>
+                    <form onSubmit={handleSaveEvent} className="bg-blue-50 p-3 rounded-lg mb-4 text-xs space-y-2 border">
+                      <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-1.5 border rounded" />
+                      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-1.5 border rounded" />
+                      <button type="submit" className="w-full bg-blue-600 text-white font-bold py-1.5 rounded">Guardar Evento</button>
                     </form>
                   )}
 
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {events.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">No hay reuniones ni alertas agendadas.</p>
+                      <p className="text-xs text-gray-400 italic">No hay reuniones agendadas.</p>
                     ) : (
-                      events.sort((a,b) => new Date(a.date) - new Date(b.date)).map(ev => (
-                        <div 
-                          key={ev.id} 
-                          className={`p-3 rounded-lg border text-xs flex justify-between items-start transition ${
-                            ev.type === 'alerta' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-blue-50 border-blue-200 text-blue-900'
-                          }`}
-                        >
+                      events.map(ev => (
+                        <div key={ev.id} className="p-3 rounded-lg border text-xs bg-blue-50 flex justify-between">
                           <div>
-                            <div className="font-bold flex items-center gap-1.5">
-                              <span>{ev.type === 'alerta' ? '⚠️' : '🤝'}</span>
-                              {ev.title}
-                            </div>
-                            <div className="text-[11px] opacity-80 mt-0.5">
-                              📆 {ev.date} — 🕒 {ev.time}
-                            </div>
+                            <div className="font-bold">{ev.title}</div>
+                            <div className="text-[11px] opacity-80">{ev.date} — {ev.time}</div>
                           </div>
-                          {isAuthenticated && (
-                            <button 
-                              onClick={() => handleDeleteEvent(ev.id)}
-                              className="text-red-400 hover:text-red-600 font-bold ml-2"
-                              title="Eliminar evento"
-                            >
-                              ✕
-                            </button>
-                          )}
+                          {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-red-500 font-bold">✕</button>}
                         </div>
                       ))
                     )}
                   </div>
                 </div>
-
               </div>
 
-              {/* SECCIÓN DERECHA: PROGRESOS */}
-              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100 relative">
-                
-                {/* VISTA 1: LÍNEA DE TRABAJO INFOGRÁFICA */}
+              {/* LISTA DE PENDIENTES */}
+              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100">
                 {viewMode === 'linea' && (
                   <div>
-                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-14 md:ml-16">
-                      <div className="border-r border-gray-200 pr-1">20%</div>
-                      <div className="border-r border-gray-200 pr-1">40%</div>
-                      <div className="border-r border-gray-200 pr-1">60%</div>
-                      <div className="border-r border-gray-200 pr-1">80%</div>
-                      <div>100%</div>
+                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b pb-2 mb-6 ml-14 md:ml-16">
+                      <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
                     </div>
 
-                    <div className="space-y-6 relative">
+                    <div className="space-y-6">
                       {filteredProjects.length === 0 ? (
-                        <p className="text-center text-xs text-gray-400 py-8">No hay proyectos con el filtro seleccionado.</p>
+                        <div className="text-center py-12 text-gray-400 text-xs">
+                          <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados.</p>
+                          <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
+                        </div>
                       ) : (
                         filteredProjects.map((project) => (
                           <div key={project.id} className="flex items-start group relative">
-                            <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow mr-3 group-hover:border-blue-500 transition-all mt-1">
+                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 rounded-full flex items-center justify-center font-bold text-xs text-gray-700 shadow mr-3 mt-1">
                               {project.id}
                             </div>
 
-                            <div 
-                              className="flex-grow cursor-pointer"
-                              onClick={() => setSelectedProject(project)}
-                            >
+                            <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
                               <div className="flex justify-between items-center mb-1 pr-2">
-                                <span className="font-bold text-xs text-gray-800">
-                                  {project.title}
-                                </span>
-                                <span className="font-extrabold text-xs text-blue-600 ml-2">
-                                  {project.percentage}%
-                                </span>
+                                <span className="font-bold text-xs text-gray-800">{project.title}</span>
+                                <span className="font-extrabold text-xs text-blue-600">{project.percentage}%</span>
                               </div>
 
-                              <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full relative">
-                                <div 
-                                  className={`h-full ${project.color} rounded-full transition-all duration-500`}
-                                  style={{ width: `${project.percentage}%` }}
-                                ></div>
+                              <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full">
+                                <div className={`h-full ${project.color} rounded-full transition-all duration-500`} style={{ width: `${project.percentage}%` }}></div>
                               </div>
                             </div>
 
-                            <div className="ml-3 flex-shrink-0 mt-6">
-                              {getStatusBadge(project.status)}
-                            </div>
-
-                            <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow pointer-events-none">
-                              Haz clic para ver detalles y evidencias en Google Drive
-                            </div>
+                            <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
                           </div>
                         ))
                       )}
                     </div>
                   </div>
                 )}
-
-                {/* VISTA 2: MATRIZ KANBAN ALTERNATIVA */}
-                {viewMode === 'kanban' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-green-50/50 p-4 rounded-xl border border-green-200">
-                      <h4 className="font-bold text-xs text-green-800 uppercase mb-3 flex items-center gap-1.5">
-                        🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
-                      </h4>
-                      <div className="space-y-3">
-                        {projects.filter(p=>p.status==='en-tiempo').map(p => (
-                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-green-400">
-                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
-                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
-                            <div className="mt-2 flex justify-between items-center">
-                              <span className="text-xs font-bold text-green-600">{p.percentage}%</span>
-                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-200">
-                      <h4 className="font-bold text-xs text-yellow-800 uppercase mb-3 flex items-center gap-1.5">
-                        🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
-                      </h4>
-                      <div className="space-y-3">
-                        {projects.filter(p=>p.status==='demorado').map(p => (
-                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-yellow-400">
-                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
-                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
-                            <div className="mt-2 flex justify-between items-center">
-                              <span className="text-xs font-bold text-yellow-600">{p.percentage}%</span>
-                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-red-50/50 p-4 rounded-xl border border-red-200">
-                      <h4 className="font-bold text-xs text-red-800 uppercase mb-3 flex items-center gap-1.5">
-                        🔴 Detenido / Bloqueado ({projects.filter(p=>p.status==='detenido').length})
-                      </h4>
-                      <div className="space-y-3">
-                        {projects.filter(p=>p.status==='detenido').map(p => (
-                          <div key={p.id} onClick={()=>setSelectedProject(p)} className="bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-red-400">
-                            <span className="text-[10px] font-bold text-gray-400">#{p.id}</span>
-                            <h5 className="font-bold text-xs text-gray-800 mt-1">{p.title}</h5>
-                            <div className="mt-2 flex justify-between items-center">
-                              <span className="text-xs font-bold text-red-600">{p.percentage}%</span>
-                              <span className="text-[10px] text-gray-400">Ver evidencias ➔</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
               </div>
 
             </div>
           </div>
 
-          {/* MODAL DE DETALLES Y EVIDENCIAS DE GOOGLE DRIVE */}
+          {/* MODAL DETALLES */}
           {selectedProject && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                <button 
-                  onClick={() => setSelectedProject(null)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold text-xl"
-                >
-                  ✕
-                </button>
+              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative">
+                <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-gray-400 font-bold text-xl">✕</button>
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-xl font-bold text-gray-800">{selectedProject.title}</h2>
                   {getStatusBadge(selectedProject.status)}
                 </div>
-                <div className="mb-4">
-                  <span className="text-sm text-gray-500 font-semibold">Progreso actual: </span>
-                  <span className="text-sm font-bold text-blue-600">{selectedProject.percentage}%</span>
-                </div>
+                <div className="mb-4 text-sm text-gray-500 font-semibold">Progreso: <span className="font-bold text-blue-600">{selectedProject.percentage}%</span></div>
 
                 {selectedProject.notes && (
                   <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                    <h4 className="text-xs font-bold text-yellow-800 uppercase">Anotaciones Importantes:</h4>
                     <p className="text-sm text-yellow-900">{selectedProject.notes}</p>
                   </div>
                 )}
 
                 <div className="mb-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
-                  {selectedProject.updates && selectedProject.updates.length > 0 ? (
-                    <ul className="space-y-2">
-                      {selectedProject.updates.map((up, idx) => (
-                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex items-center justify-between gap-2">
-                          <div>
-                            <span className="font-semibold text-gray-500 mr-2">{up.date}:</span>
-                            <span className="text-gray-700">{up.text}</span>
-                          </div>
-                          {isAuthenticated && (
-                            <button 
-                              onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)}
-                              className="text-red-400 hover:text-red-600 font-bold text-xs flex-shrink-0"
-                              title="Eliminar esta actualización"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-gray-400 italic">No hay registros de actualización previos.</p>
-                  )}
-                </div>
-
-                <div className="mb-4">
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Carpeta / Evidencia (Google Drive):</h4>
                   {selectedProject.driveUrl ? (
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
-                      <p className="text-xs text-gray-600 mb-2 font-medium">Carpeta en Google Drive asignada a este proyecto:</p>
-                      <a 
-                        href={selectedProject.driveUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition"
-                      >
-                        📁 Abrir Carpeta de Evidencias en Google Drive ➔
-                      </a>
-                    </div>
+                    <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-lg shadow">
+                      📁 Abrir Carpeta en Google Drive ➔
+                    </a>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No hay carpeta agregada para este avance.</p>
+                    <p className="text-xs text-gray-400 italic">No hay carpeta asignada.</p>
                   )}
                 </div>
 
-                <div className="flex justify-between items-center border-t pt-4">
-                  {isAuthenticated ? (
-                    <button 
-                      onClick={() => handleDeleteProject(selectedProject)}
-                      disabled={isDeletingProject}
-                      className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-2 rounded-lg font-bold transition"
-                    >
-                      🗑️ Eliminar Pendiente y Carpeta
-                    </button>
-                  ) : <div></div>}
-                  <button 
-                    onClick={() => setSelectedProject(null)}
-                    className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 font-semibold"
-                  >
-                    Cerrar
-                  </button>
+                <div className="text-right border-t pt-4">
+                  <button onClick={() => setSelectedProject(null)} className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg">Cerrar</button>
                 </div>
               </div>
             </div>
