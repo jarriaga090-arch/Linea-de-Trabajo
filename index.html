@@ -23,7 +23,6 @@
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
-    // Nueva URL de tu Google Apps Script integrada
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzg0AF8VHKm9l-lzIkXyW80Kjgy_ViqBbeDpIZdmNVfGhii4v2xN1kDxUe7fgwk50BF3Q/exec";
 
     const initialProjects = [
@@ -62,6 +61,7 @@
       const [viewMode, setViewMode] = useState('linea'); 
       const [statusFilter, setStatusFilter] = useState('todos'); 
       const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+      const [isDeletingProject, setIsDeletingProject] = useState(false);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -116,14 +116,14 @@
         resetForm();
       };
 
-      // Función para crear la carpeta en Google Drive automáticamente
+      // Crear Carpeta en Google Drive
       const createDriveFolder = async (activityName) => {
         if (!APPS_SCRIPT_URL) return null;
         try {
           setIsCreatingFolder(true);
           const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({ activityName: activityName }),
+            body: JSON.stringify({ action: 'createFolder', activityName: activityName }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
           });
           const result = await response.json();
@@ -137,6 +137,44 @@
           setIsCreatingFolder(false);
           return null;
         }
+      };
+
+      // Eliminar Carpeta de Google Drive
+      const deleteDriveFolder = async (folderUrl) => {
+        if (!APPS_SCRIPT_URL || !folderUrl) return;
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'deleteFolder', folderUrl: folderUrl }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+        } catch (error) {
+          console.error("Error eliminando carpeta en Google Drive:", error);
+        }
+      };
+
+      // Eliminar un pendiente completo y su carpeta
+      const handleDeleteProject = async (projectToDelete) => {
+        const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar el pendiente "${projectToDelete.title}"? Esto también eliminará su carpeta en Google Drive.`);
+        if (!confirmDelete) return;
+
+        setIsDeletingProject(true);
+
+        if (projectToDelete.driveUrl) {
+          await deleteDriveFolder(projectToDelete.driveUrl);
+        }
+
+        setProjects(projects.filter(p => p.id !== projectToDelete.id));
+
+        if (selectedProject && selectedProject.id === projectToDelete.id) {
+          setSelectedProject(null);
+        }
+
+        if (editId === projectToDelete.id) {
+          resetForm();
+        }
+
+        setIsDeletingProject(false);
       };
 
       const handleUpdateChange = (index, newText) => {
@@ -167,7 +205,6 @@
         e.preventDefault();
         let finalDriveUrl = driveUrl;
 
-        // Si es un proyecto nuevo y no se introdujo liga manual, creamos la carpeta en Drive
         if (!editId && !finalDriveUrl.trim()) {
           const autoUrl = await createDriveFolder(title);
           if (autoUrl) {
@@ -510,7 +547,7 @@
 
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                        Enlace de Carpeta de Google Drive (Se crea automáticamente en Drive al guardar si se deja vacío)
+                        Enlace de Carpeta de Google Drive
                       </label>
                       <input 
                         type="url" 
@@ -572,38 +609,66 @@
                       />
                     </div>
 
-                    <div className="md:col-span-2 flex justify-end gap-2 mt-2">
-                      {editId && (
+                    <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
+                      <div>
+                        {editId && (
+                          <button 
+                            type="button" 
+                            disabled={isDeletingProject}
+                            onClick={() => {
+                              const proj = projects.find(p => p.id === editId);
+                              if (proj) handleDeleteProject(proj);
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded font-bold transition flex items-center gap-1"
+                          >
+                            🗑️ Eliminar Pendiente y Carpeta
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {editId && (
+                          <button 
+                            type="button" 
+                            onClick={resetForm}
+                            className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500"
+                          >
+                            Cancelar
+                          </button>
+                        )}
                         <button 
-                          type="button" 
-                          onClick={resetForm}
-                          className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500"
+                          type="submit" 
+                          disabled={isCreatingFolder || isDeletingProject}
+                          className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2"
                         >
-                          Cancelar
+                          {isCreatingFolder && <span className="animate-spin">📁</span>}
+                          {isCreatingFolder ? 'Creando Carpeta...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
                         </button>
-                      )}
-                      <button 
-                        type="submit" 
-                        disabled={isCreatingFolder}
-                        className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2"
-                      >
-                        {isCreatingFolder && <span className="animate-spin">📁</span>}
-                        {isCreatingFolder ? 'Creando Carpeta en Drive...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
-                      </button>
+                      </div>
                     </div>
                   </form>
 
+                  {/* LISTA DE BOTONES DE EDICIÓN Y ELIMINACIÓN RÁPIDA */}
                   <div className="mt-6 border-t pt-4">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar:</h3>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
                     <div className="flex flex-wrap gap-2">
                       {projects.map(p => (
-                        <button 
-                          key={p.id} 
-                          onClick={() => handleEditClick(p)}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded"
-                        >
-                          ✏️ {p.id} - {p.title.substring(0, 20)}...
-                        </button>
+                        <div key={p.id} className="inline-flex items-center border rounded bg-gray-50 overflow-hidden shadow-sm">
+                          <button 
+                            onClick={() => handleEditClick(p)}
+                            className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 font-semibold text-gray-700 border-r"
+                          >
+                            ✏️ {p.id} - {p.title.substring(0, 18)}...
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProject(p)}
+                            disabled={isDeletingProject}
+                            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 font-bold"
+                            title="Eliminar pendiente y su carpeta"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -948,10 +1013,19 @@
                   )}
                 </div>
 
-                <div className="text-right">
+                <div className="flex justify-between items-center border-t pt-4">
+                  {isAuthenticated ? (
+                    <button 
+                      onClick={() => handleDeleteProject(selectedProject)}
+                      disabled={isDeletingProject}
+                      className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-2 rounded-lg font-bold transition"
+                    >
+                      🗑️ Eliminar Pendiente y Carpeta
+                    </button>
+                  ) : <div></div>}
                   <button 
                     onClick={() => setSelectedProject(null)}
-                    className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700"
+                    className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 font-semibold"
                   >
                     Cerrar
                   </button>
