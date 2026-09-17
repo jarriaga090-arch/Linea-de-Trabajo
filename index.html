@@ -23,6 +23,9 @@
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
+    // URL de tu Google Apps Script
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby46IT6gbrAJ2s243ua9LfNx7DqCE_0eqa6pyQkQP5EtjrnXQ8qfWPxRGJaV0o6IgSBsA/exec";
+
     const initialProjects = [
       {
         id: '01',
@@ -31,67 +34,16 @@
         color: 'bg-teal-400',
         status: 'en-tiempo',
         notes: 'Anotación importante: Faltan pruebas de integración.',
-        driveUrl: '',
+        driveUrl: 'https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT',
         updates: [
           { date: '2026-09-10', text: 'Inicio de arquitectura' },
           { date: '2026-09-14', text: 'Pruebas unitarias completadas' }
         ]
-      },
-      {
-        id: '02',
-        title: 'PROGRESS 02 - Diseño UI/UX',
-        percentage: 70,
-        color: 'bg-orange-400',
-        status: 'en-tiempo',
-        notes: 'Revisar prototipo en Figma antes de enviar a producción.',
-        driveUrl: '',
-        updates: [{ date: '2026-09-12', text: 'Wireframes aprobados' }]
-      },
-      {
-        id: '03',
-        title: 'PROGRESS 03 - Configuración AWS',
-        percentage: 30,
-        color: 'bg-slate-700',
-        status: 'demorado',
-        notes: 'Credenciales en AWS Secrets Manager.',
-        driveUrl: '',
-        updates: []
-      },
-      {
-        id: '04',
-        title: 'PROGRESS 04 - QA & Testing',
-        percentage: 85,
-        color: 'bg-lime-500',
-        status: 'en-tiempo',
-        notes: 'Faltan evidencias de pruebas de estrés.',
-        driveUrl: '',
-        updates: [{ date: '2026-09-15', text: 'Documento de casos de prueba subido' }]
-      },
-      {
-        id: '05',
-        title: 'PROGRESS 05 - Despliegue Final',
-        percentage: 10,
-        color: 'bg-rose-800',
-        status: 'detenido',
-        notes: 'Pendiente la aprobación final del director.',
-        driveUrl: '',
-        updates: []
-      },
-      {
-        id: '06',
-        title: 'PROGRESS 06 - Planificación de Evento OCV',
-        percentage: 0,
-        color: 'bg-purple-600',
-        status: 'detenido',
-        notes: 'Por iniciar tras aprobación presupuestal.',
-        driveUrl: '',
-        updates: []
       }
     ];
 
     const initialEvents = [
-      { id: 1, title: 'Reunión de Avance con Directores', date: '2026-09-18', time: '10:00 AM', type: 'reunion' },
-      { id: 2, title: 'Alerta: Entrega de Reporte de QA', date: '2026-09-22', time: '05:00 PM', type: 'alerta' }
+      { id: 1, title: 'Reunión de Avance con Directores', date: '2026-09-18', time: '10:00 AM', type: 'reunion' }
     ];
 
     function App() {
@@ -109,6 +61,7 @@
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [viewMode, setViewMode] = useState('linea'); 
       const [statusFilter, setStatusFilter] = useState('todos'); 
+      const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -145,12 +98,6 @@
         localStorage.setItem('workline_events', JSON.stringify(events));
       }, [events]);
 
-      const formatDriveUrl = (url) => {
-        if (!url) return '';
-        if (url.includes('/preview')) return url;
-        return url.replace(/\/view(\?.*)?$/, '/preview');
-      };
-
       const handleLogin = (e) => {
         e.preventDefault();
         if (loginUser === AUTH_USER && loginPass === AUTH_PASS) {
@@ -169,19 +116,39 @@
         resetForm();
       };
 
-      // Modificar texto de una actualización existente
+      // Función para crear la carpeta en Google Drive automáticamente
+      const createDriveFolder = async (activityName) => {
+        if (!APPS_SCRIPT_URL) return null;
+        try {
+          setIsCreatingFolder(true);
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ activityName: activityName }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          const result = await response.json();
+          setIsCreatingFolder(false);
+          if (result.status === "success") {
+            return result.folderUrl;
+          }
+          return null;
+        } catch (error) {
+          console.error("Error creando carpeta en Google Drive:", error);
+          setIsCreatingFolder(false);
+          return null;
+        }
+      };
+
       const handleUpdateChange = (index, newText) => {
         const updated = [...updatesList];
         updated[index].text = newText;
         setUpdatesList(updated);
       };
 
-      // Eliminar una actualización en el formulario
       const handleDeleteUpdate = (index) => {
         setUpdatesList(updatesList.filter((_, i) => i !== index));
       };
 
-      // Eliminar actualización directamente desde el Modal de Detalle
       const handleDeleteUpdateFromModal = (projectId, updateIndex) => {
         setProjects(projects.map(p => {
           if (p.id === projectId) {
@@ -196,11 +163,19 @@
         }));
       };
 
-      const handleSaveProject = (e) => {
+      const handleSaveProject = async (e) => {
         e.preventDefault();
-        const formattedUrl = formatDriveUrl(driveUrl);
-        const finalUpdates = [...updatesList];
+        let finalDriveUrl = driveUrl;
 
+        // Si es un proyecto nuevo y no se introdujo liga manual, creamos la carpeta en Drive
+        if (!editId && !finalDriveUrl.trim()) {
+          const autoUrl = await createDriveFolder(title);
+          if (autoUrl) {
+            finalDriveUrl = autoUrl;
+          }
+        }
+
+        const finalUpdates = [...updatesList];
         if (newUpdateText.trim()) {
           finalUpdates.push({
             date: new Date().toISOString().split('T')[0],
@@ -218,7 +193,7 @@
                 color,
                 status,
                 notes,
-                driveUrl: formattedUrl,
+                driveUrl: finalDriveUrl,
                 updates: finalUpdates
               };
             }
@@ -234,7 +209,7 @@
             color,
             status,
             notes,
-            driveUrl: formattedUrl,
+            driveUrl: finalDriveUrl,
             updates: finalUpdates
           };
           setProjects([...projects, newProj]);
@@ -534,12 +509,14 @@
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Enlace de Google Drive (Evidencia)</label>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                        Enlace de Carpeta de Google Drive (Se crea automáticamente en Drive al guardar si se deja vacío)
+                      </label>
                       <input 
                         type="url" 
                         value={driveUrl} 
                         onChange={e => setDriveUrl(e.target.value)} 
-                        placeholder="https://drive.google.com/file/d/.../view" 
+                        placeholder="Se creará automáticamente o puedes pegar una liga existente..." 
                         className="w-full border rounded p-2 text-sm"
                       />
                     </div>
@@ -555,7 +532,6 @@
                       ></textarea>
                     </div>
 
-                    {/* EDICIÓN Y ELIMINACIÓN DE ACTUALIZACIONES REGISTRADAS */}
                     <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
                         Historial de Actualizaciones (Editar / Eliminar)
@@ -608,9 +584,11 @@
                       )}
                       <button 
                         type="submit" 
-                        className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold"
+                        disabled={isCreatingFolder}
+                        className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2"
                       >
-                        {editId ? 'Guardar Cambios' : 'Anexar Pendiente'}
+                        {isCreatingFolder && <span className="animate-spin">📁</span>}
+                        {isCreatingFolder ? 'Creando Carpeta en Drive...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
                       </button>
                     </div>
                   </form>
@@ -924,7 +902,6 @@
                   </div>
                 )}
 
-                {/* HISTORIAL DE ACTUALIZACIONES EN EL MODAL */}
                 <div className="mb-4">
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
                   {selectedProject.updates && selectedProject.updates.length > 0 ? (
@@ -953,15 +930,21 @@
                 </div>
 
                 <div className="mb-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">Archivo Adjunto / Evidencia (Google Drive):</h4>
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">Carpeta / Evidencia (Google Drive):</h4>
                   {selectedProject.driveUrl ? (
-                    <iframe 
-                      src={selectedProject.driveUrl} 
-                      className="w-full h-64 border border-gray-300 rounded-lg"
-                      title="Google Drive Preview"
-                    ></iframe>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-center">
+                      <p className="text-xs text-gray-600 mb-2 font-medium">Carpeta en Google Drive asignada a este proyecto:</p>
+                      <a 
+                        href={selectedProject.driveUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition"
+                      >
+                        📁 Abrir Carpeta de Evidencias en Google Drive ➔
+                      </a>
+                    </div>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No hay archivos adjuntos agregados para este avance.</p>
+                    <p className="text-xs text-gray-400 italic">No hay carpeta agregada para este avance.</p>
                   )}
                 </div>
 
