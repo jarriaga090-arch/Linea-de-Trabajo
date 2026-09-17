@@ -89,6 +89,31 @@
         resetForm();
       };
 
+      // Funciones para manejar el Historial de Actualizaciones
+      const handleUpdateChange = (index, newText) => {
+        const updated = [...updatesList];
+        updated[index].text = newText;
+        setUpdatesList(updated);
+      };
+
+      const handleDeleteUpdate = (index) => {
+        setUpdatesList(updatesList.filter((_, i) => i !== index));
+      };
+
+      const handleDeleteUpdateFromModal = (projectId, updateIndex) => {
+        setProjects(projects.map(p => {
+          if (p.id === projectId) {
+            const newUpdates = p.updates.filter((_, i) => i !== updateIndex);
+            const updatedProject = { ...p, updates: newUpdates };
+            if (selectedProject && selectedProject.id === projectId) {
+              setSelectedProject(updatedProject);
+            }
+            return updatedProject;
+          }
+          return p;
+        }));
+      };
+
       const handleSaveProject = async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
@@ -96,6 +121,7 @@
         setIsLoading(true);
         let finalDriveUrl = driveUrl;
 
+        // Si es un proyecto nuevo y no se introdujo URL, creamos la carpeta en Drive
         if (!editId && !finalDriveUrl.trim()) {
           try {
             const response = await fetch(APPS_SCRIPT_URL, {
@@ -404,6 +430,47 @@
                       <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border rounded p-2 text-sm"></textarea>
                     </div>
 
+                    {/* CAJA DE HISTORIAL DE ACTUALIZACIONES REHABILITADA */}
+                    <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Historial de Actualizaciones (Editar / Eliminar)
+                      </label>
+                      {updatesList.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic mb-2">No hay actualizaciones registradas en esta actividad.</p>
+                      ) : (
+                        <div className="space-y-2 mb-3">
+                          {updatesList.map((up, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-500 w-24 flex-shrink-0">{up.date}:</span>
+                              <input 
+                                type="text" 
+                                value={up.text} 
+                                onChange={e => handleUpdateChange(idx, e.target.value)} 
+                                className="w-full border rounded p-1 text-xs"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteUpdate(idx)}
+                                className="text-red-500 hover:text-red-700 font-bold text-sm px-2"
+                                title="Eliminar actualización"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
+                      <input 
+                        type="text" 
+                        value={newUpdateText} 
+                        onChange={e => setNewUpdateText(e.target.value)} 
+                        placeholder="Ej. Se concluyó la configuración inicial." 
+                        className="w-full border rounded p-2 text-sm"
+                      />
+                    </div>
+
                     <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
                       <div>
                         {editId && (
@@ -568,7 +635,7 @@
           {/* MODAL DETALLES */}
           {selectedProject && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative">
+              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-gray-400 font-bold text-xl">✕</button>
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-xl font-bold text-gray-800">{selectedProject.title}</h2>
@@ -578,9 +645,37 @@
 
                 {selectedProject.notes && (
                   <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
+                    <h4 className="text-xs font-bold text-yellow-800 uppercase">Anotaciones Importantes:</h4>
                     <p className="text-sm text-yellow-900">{selectedProject.notes}</p>
                   </div>
                 )}
+
+                <div className="mb-4">
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
+                  {selectedProject.updates && selectedProject.updates.length > 0 ? (
+                    <ul className="space-y-2">
+                      {selectedProject.updates.map((up, idx) => (
+                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex items-center justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-gray-500 mr-2">{up.date}:</span>
+                            <span className="text-gray-700">{up.text}</span>
+                          </div>
+                          {isAuthenticated && (
+                            <button 
+                              onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)}
+                              className="text-red-400 hover:text-red-600 font-bold text-xs flex-shrink-0"
+                              title="Eliminar actualización"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">No hay registros de actualización previos.</p>
+                  )}
+                </div>
 
                 <div className="mb-4">
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Carpeta / Evidencia (Google Drive):</h4>
