@@ -33,7 +33,7 @@
         color: 'bg-teal-400',
         status: 'en-tiempo',
         notes: 'Anotación importante: Faltan pruebas de integración.',
-        driveUrl: 'https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT',
+        driveUrl: '',
         updates: [
           { date: '2026-09-10', text: 'Inicio de arquitectura' },
           { date: '2026-09-14', text: 'Pruebas unitarias completadas' }
@@ -62,6 +62,7 @@
       const [statusFilter, setStatusFilter] = useState('todos'); 
       const [isCreatingFolder, setIsCreatingFolder] = useState(false);
       const [isDeletingProject, setIsDeletingProject] = useState(false);
+      const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -116,7 +117,29 @@
         resetForm();
       };
 
-      // Crear Carpeta en Google Drive
+      // Proceso de Creación Única en Lote
+      const handleBatchCreateFolders = async () => {
+        if (!APPS_SCRIPT_URL) return;
+        setIsBatchProcessing(true);
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'createBatchFolders', projects: projects }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          const result = await response.json();
+          setIsBatchProcessing(false);
+          if (result.status === "success" && result.projects) {
+            setProjects(result.projects);
+            alert("¡Éxito! Se generaron las carpetas en Google Drive para todas las actividades existentes.");
+          }
+        } catch (error) {
+          console.error("Error en proceso por lote:", error);
+          setIsBatchProcessing(false);
+          alert("Ocurrió un error al intentar generar las carpetas.");
+        }
+      };
+
       const createDriveFolder = async (activityName) => {
         if (!APPS_SCRIPT_URL) return null;
         try {
@@ -139,7 +162,6 @@
         }
       };
 
-      // Eliminar Carpeta de Google Drive
       const deleteDriveFolder = async (folderUrl) => {
         if (!APPS_SCRIPT_URL || !folderUrl) return;
         try {
@@ -153,7 +175,6 @@
         }
       };
 
-      // Eliminar un pendiente completo y su carpeta
       const handleDeleteProject = async (projectToDelete) => {
         const confirmDelete = window.confirm(`¿Estás seguro de que deseas eliminar el pendiente "${projectToDelete.title}"? Esto también eliminará su carpeta en Google Drive.`);
         if (!confirmDelete) return;
@@ -483,6 +504,21 @@
                 </div>
               ) : (
                 <div>
+                  {/* BOTÓN DE CREACIÓN ÚNICA EN LOTE PARA PROYECTOS PREVIOS */}
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-xs text-blue-900 uppercase">Generador de Carpetas Iniciales (1 Sola Vez)</h3>
+                      <p className="text-xs text-blue-700">Haz clic aquí para crear en Google Drive las carpetas de todos los pendientes ya existentes en tu lista.</p>
+                    </div>
+                    <button 
+                      onClick={handleBatchCreateFolders}
+                      disabled={isBatchProcessing}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center gap-2 flex-shrink-0"
+                    >
+                      {isBatchProcessing ? '⌛ Generando...' : '📁 Generar Carpetas Faltantes'}
+                    </button>
+                  </div>
+
                   <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
                     {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
                   </h2>
