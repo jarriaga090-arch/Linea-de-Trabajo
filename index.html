@@ -719,13 +719,13 @@
 
               </div>
 
-              {/* SECCIÓN DERECHA: PROGRESOS (VISTA LÍNEA CON UMBRAL MEJORADO O KANBAN) */}
+              {/* SECCIÓN DERECHA: PROGRESOS (SOLUCIÓN 1: TITULO SOBRE LA BARRA) */}
               <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100 relative">
                 
                 {/* VISTA 1: LÍNEA DE TRABAJO INFOGRÁFICA */}
                 {viewMode === 'linea' && (
                   <div>
-                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-14 md:ml-24">
+                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b border-gray-200 pb-2 mb-6 ml-14 md:ml-16">
                       <div className="border-r border-gray-200 pr-1">20%</div>
                       <div className="border-r border-gray-200 pr-1">40%</div>
                       <div className="border-r border-gray-200 pr-1">60%</div>
@@ -737,55 +737,48 @@
                       {filteredProjects.length === 0 ? (
                         <p className="text-center text-xs text-gray-400 py-8">No hay proyectos con el filtro seleccionado.</p>
                       ) : (
-                        filteredProjects.map((project) => {
-                          // Umbral ajustado al 35% para que los títulos largos se desplieguen completos sobre la barra gris
-                          const isLowPercentage = project.percentage < 35;
+                        filteredProjects.map((project) => (
+                          <div key={project.id} className="flex items-start group relative">
+                            {/* Badge con ID */}
+                            <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow mr-3 group-hover:border-blue-500 transition-all mt-1">
+                              {project.id}
+                            </div>
 
-                          return (
-                            <div key={project.id} className="flex items-center group relative">
-                              {/* Badge con ID */}
-                              <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow mr-3 group-hover:border-blue-500 transition-all">
-                                {project.id}
+                            {/* Contenedor del título y la barra de progreso */}
+                            <div 
+                              className="flex-grow cursor-pointer"
+                              onClick={() => setSelectedProject(project)}
+                            >
+                              {/* LÍNEA SUPERIOR: Título de la actividad y Porcentaje */}
+                              <div className="flex justify-between items-center mb-1 pr-2">
+                                <span className="font-bold text-xs text-gray-800">
+                                  {project.title}
+                                </span>
+                                <span className="font-extrabold text-xs text-blue-600 ml-2">
+                                  {project.percentage}%
+                                </span>
                               </div>
 
-                              {/* Barra de progreso */}
-                              <div 
-                                className="flex-grow bg-gray-200 h-8 md:h-10 rounded-full relative overflow-hidden cursor-pointer shadow-inner flex items-center"
-                                onClick={() => setSelectedProject(project)}
-                              >
-                                {/* Barra activa de color */}
+                              {/* LÍNEA INFERIOR: Barra de progreso a color */}
+                              <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full relative">
                                 <div 
-                                  className={`h-full ${project.color} rounded-full transition-all duration-500 flex items-center px-4`}
-                                  style={{ width: `${Math.max(project.percentage, 2)}%` }}
-                                >
-                                  {/* Si el avance es >= 35%, el texto va en blanco DENTRO de la barra */}
-                                  {!isLowPercentage && (
-                                    <span className="text-white font-bold text-xs whitespace-nowrap drop-shadow truncate">
-                                      {project.title} ({project.percentage}%)
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Si el avance es < 35%, el texto va en gris oscuro FUERA de la barra */}
-                                {isLowPercentage && (
-                                  <span className="absolute left-6 text-gray-800 font-bold text-xs whitespace-nowrap drop-shadow-sm truncate z-10">
-                                    {project.title} ({project.percentage}%)
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Semáforo de Estado */}
-                              <div className="ml-3 flex-shrink-0">
-                                {getStatusBadge(project.status)}
-                              </div>
-
-                              {/* Tooltip Hover */}
-                              <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow pointer-events-none">
-                                Avance: {project.percentage}% (Haz clic para ver detalles y evidencias)
+                                  className={`h-full ${project.color} rounded-full transition-all duration-500`}
+                                  style={{ width: `${project.percentage}%` }}
+                                ></div>
                               </div>
                             </div>
-                          );
-                        })
+
+                            {/* Semáforo de Estado a la derecha */}
+                            <div className="ml-3 flex-shrink-0 mt-6">
+                              {getStatusBadge(project.status)}
+                            </div>
+
+                            {/* Tooltip Hover */}
+                            <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow pointer-events-none">
+                              Haz clic para ver detalles y evidencias en Google Drive
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
                   </div>
