@@ -124,6 +124,7 @@
       const [status, setStatus] = useState('en-tiempo');
       const [notes, setNotes] = useState('');
       const [driveUrl, setDriveUrl] = useState('');
+      const [updatesList, setUpdatesList] = useState([]);
       const [newUpdateText, setNewUpdateText] = useState('');
 
       // Formulario Eventos
@@ -168,20 +169,48 @@
         resetForm();
       };
 
+      // Modificar texto de una actualización existente
+      const handleUpdateChange = (index, newText) => {
+        const updated = [...updatesList];
+        updated[index].text = newText;
+        setUpdatesList(updated);
+      };
+
+      // Eliminar una actualización en el formulario
+      const handleDeleteUpdate = (index) => {
+        setUpdatesList(updatesList.filter((_, i) => i !== index));
+      };
+
+      // Eliminar actualización directamente desde el Modal de Detalle
+      const handleDeleteUpdateFromModal = (projectId, updateIndex) => {
+        setProjects(projects.map(p => {
+          if (p.id === projectId) {
+            const newUpdates = p.updates.filter((_, i) => i !== updateIndex);
+            const updatedProject = { ...p, updates: newUpdates };
+            if (selectedProject && selectedProject.id === projectId) {
+              setSelectedProject(updatedProject);
+            }
+            return updatedProject;
+          }
+          return p;
+        }));
+      };
+
       const handleSaveProject = (e) => {
         e.preventDefault();
         const formattedUrl = formatDriveUrl(driveUrl);
+        const finalUpdates = [...updatesList];
+
+        if (newUpdateText.trim()) {
+          finalUpdates.push({
+            date: new Date().toISOString().split('T')[0],
+            text: newUpdateText.trim()
+          });
+        }
 
         if (editId) {
           setProjects(projects.map(p => {
             if (p.id === editId) {
-              const updatedList = [...p.updates];
-              if (newUpdateText.trim()) {
-                updatedList.push({
-                  date: new Date().toISOString().split('T')[0],
-                  text: newUpdateText.trim()
-                });
-              }
               return {
                 ...p,
                 title,
@@ -190,7 +219,7 @@
                 status,
                 notes,
                 driveUrl: formattedUrl,
-                updates: updatedList
+                updates: finalUpdates
               };
             }
             return p;
@@ -206,9 +235,7 @@
             status,
             notes,
             driveUrl: formattedUrl,
-            updates: newUpdateText.trim() 
-              ? [{ date: new Date().toISOString().split('T')[0], text: newUpdateText.trim() }]
-              : []
+            updates: finalUpdates
           };
           setProjects([...projects, newProj]);
         }
@@ -247,6 +274,7 @@
         setStatus(p.status || 'en-tiempo');
         setNotes(p.notes || '');
         setDriveUrl(p.driveUrl || '');
+        setUpdatesList(p.updates || []);
         setNewUpdateText('');
       };
 
@@ -258,6 +286,7 @@
         setStatus('en-tiempo');
         setNotes('');
         setDriveUrl('');
+        setUpdatesList([]);
         setNewUpdateText('');
       };
 
@@ -349,8 +378,6 @@
 
           {/* BARRA DE HERRAMIENTAS EJECUTIVAS */}
           <div className="bg-white p-3 rounded-xl shadow border border-gray-200 mb-6 flex flex-wrap items-center justify-between gap-3">
-            
-            {/* Filtros por Semáforo */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-gray-500 uppercase">Filtro Estado:</span>
               <button 
@@ -379,7 +406,6 @@
               </button>
             </div>
 
-            {/* Selector de Vista y Exportar PDF */}
             <div className="flex items-center gap-2">
               <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
                 <button 
@@ -529,8 +555,38 @@
                       ></textarea>
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Agregar Nueva Actualización de Avance</label>
+                    {/* EDICIÓN Y ELIMINACIÓN DE ACTUALIZACIONES REGISTRADAS */}
+                    <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
+                        Historial de Actualizaciones (Editar / Eliminar)
+                      </label>
+                      {updatesList.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic mb-2">No hay actualizaciones en este proyecto.</p>
+                      ) : (
+                        <div className="space-y-2 mb-3">
+                          {updatesList.map((up, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-500 w-24 flex-shrink-0">{up.date}:</span>
+                              <input 
+                                type="text" 
+                                value={up.text} 
+                                onChange={e => handleUpdateChange(idx, e.target.value)} 
+                                className="w-full border rounded p-1 text-xs"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteUpdate(idx)}
+                                className="text-red-500 hover:text-red-700 font-bold text-sm px-2"
+                                title="Eliminar actualización"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
                       <input 
                         type="text" 
                         value={newUpdateText} 
@@ -719,7 +775,7 @@
 
               </div>
 
-              {/* SECCIÓN DERECHA: PROGRESOS (SOLUCIÓN 1: TITULO SOBRE LA BARRA) */}
+              {/* SECCIÓN DERECHA: PROGRESOS */}
               <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100 relative">
                 
                 {/* VISTA 1: LÍNEA DE TRABAJO INFOGRÁFICA */}
@@ -739,17 +795,14 @@
                       ) : (
                         filteredProjects.map((project) => (
                           <div key={project.id} className="flex items-start group relative">
-                            {/* Badge con ID */}
                             <div className="z-10 flex-shrink-0 w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center font-bold text-xs md:text-sm text-gray-700 shadow mr-3 group-hover:border-blue-500 transition-all mt-1">
                               {project.id}
                             </div>
 
-                            {/* Contenedor del título y la barra de progreso */}
                             <div 
                               className="flex-grow cursor-pointer"
                               onClick={() => setSelectedProject(project)}
                             >
-                              {/* LÍNEA SUPERIOR: Título de la actividad y Porcentaje */}
                               <div className="flex justify-between items-center mb-1 pr-2">
                                 <span className="font-bold text-xs text-gray-800">
                                   {project.title}
@@ -759,7 +812,6 @@
                                 </span>
                               </div>
 
-                              {/* LÍNEA INFERIOR: Barra de progreso a color */}
                               <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full relative">
                                 <div 
                                   className={`h-full ${project.color} rounded-full transition-all duration-500`}
@@ -768,12 +820,10 @@
                               </div>
                             </div>
 
-                            {/* Semáforo de Estado a la derecha */}
                             <div className="ml-3 flex-shrink-0 mt-6">
                               {getStatusBadge(project.status)}
                             </div>
 
-                            {/* Tooltip Hover */}
                             <div className="absolute left-32 md:left-44 -top-8 hidden group-hover:flex bg-gray-900 text-white text-xs rounded py-1 px-3 z-20 shadow pointer-events-none">
                               Haz clic para ver detalles y evidencias en Google Drive
                             </div>
@@ -787,8 +837,6 @@
                 {/* VISTA 2: MATRIZ KANBAN ALTERNATIVA */}
                 {viewMode === 'kanban' && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    
-                    {/* Columna: En Tiempo */}
                     <div className="bg-green-50/50 p-4 rounded-xl border border-green-200">
                       <h4 className="font-bold text-xs text-green-800 uppercase mb-3 flex items-center gap-1.5">
                         🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
@@ -807,7 +855,6 @@
                       </div>
                     </div>
 
-                    {/* Columna: Demorado */}
                     <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-200">
                       <h4 className="font-bold text-xs text-yellow-800 uppercase mb-3 flex items-center gap-1.5">
                         🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
@@ -826,7 +873,6 @@
                       </div>
                     </div>
 
-                    {/* Columna: Detenido / Bloqueado */}
                     <div className="bg-red-50/50 p-4 rounded-xl border border-red-200">
                       <h4 className="font-bold text-xs text-red-800 uppercase mb-3 flex items-center gap-1.5">
                         🔴 Detenido / Bloqueado ({projects.filter(p=>p.status==='detenido').length})
@@ -844,7 +890,6 @@
                         ))}
                       </div>
                     </div>
-
                   </div>
                 )}
 
@@ -879,14 +924,26 @@
                   </div>
                 )}
 
+                {/* HISTORIAL DE ACTUALIZACIONES EN EL MODAL */}
                 <div className="mb-4">
                   <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
                   {selectedProject.updates && selectedProject.updates.length > 0 ? (
                     <ul className="space-y-2">
                       {selectedProject.updates.map((up, idx) => (
-                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex gap-2">
-                          <span className="font-semibold text-gray-500">{up.date}:</span>
-                          <span className="text-gray-700">{up.text}</span>
+                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex items-center justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-gray-500 mr-2">{up.date}:</span>
+                            <span className="text-gray-700">{up.text}</span>
+                          </div>
+                          {isAuthenticated && (
+                            <button 
+                              onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)}
+                              className="text-red-400 hover:text-red-600 font-bold text-xs flex-shrink-0"
+                              title="Eliminar esta actualización"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>
