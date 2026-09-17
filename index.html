@@ -22,7 +22,6 @@
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzg0AF8VHKm9l-lzIkXyW80Kjgy_ViqBbeDpIZdmNVfGhii4v2xN1kDxUe7fgwk50BF3Q/exec";
 
     function App() {
-      // Iniciamos sin proyectos predeterminados (desde cero)
       const [projects, setProjects] = useState(() => {
         const saved = localStorage.getItem('workline_projects');
         return saved ? JSON.parse(saved) : [];
@@ -61,7 +60,6 @@
       const [eventTitle, setEventTitle] = useState('');
       const [eventDate, setEventDate] = useState('');
       const [eventTime, setEventTime] = useState('');
-      const [eventType, setEventType] = useState('reunion');
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
@@ -91,7 +89,6 @@
         resetForm();
       };
 
-      // Guardar / Crear Proyecto
       const handleSaveProject = async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
@@ -99,7 +96,6 @@
         setIsLoading(true);
         let finalDriveUrl = driveUrl;
 
-        // Si es un proyecto nuevo y no tiene URL, la creamos en Google Drive
         if (!editId && !finalDriveUrl.trim()) {
           try {
             const response = await fetch(APPS_SCRIPT_URL, {
@@ -160,7 +156,6 @@
         resetForm();
       };
 
-      // Eliminar Proyecto y Carpeta
       const handleDeleteProject = async (projectToDelete) => {
         if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta en Drive?`)) return;
 
@@ -216,8 +211,7 @@
           id: Date.now(),
           title: eventTitle,
           date: eventDate,
-          time: eventTime || 'Todo el día',
-          type: eventType
+          time: eventTime || 'Todo el día'
         };
         setEvents([...events, newEv]);
         setEventTitle('');
@@ -378,16 +372,23 @@
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra</label>
-                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border rounded p-2 text-sm">
-                        <option value="bg-teal-400">Turquesa</option>
-                        <option value="bg-orange-400">Naranja</option>
-                        <option value="bg-slate-700">Azul Oscuro / Slate</option>
-                        <option value="bg-lime-500">Verde Lima</option>
-                        <option value="bg-rose-800">Granate / Rojo</option>
-                        <option value="bg-sky-400">Azul Claro</option>
-                        <option value="bg-indigo-600">Índigo / Violeta</option>
-                        <option value="bg-emerald-500">Verde Esmeralda</option>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra (Muestra Visual)</label>
+                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border rounded p-2 text-sm font-semibold">
+                        <option value="bg-teal-400">🟢 Turquesa Claro</option>
+                        <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
+                        <option value="bg-sky-400">🔵 Azul Cielo</option>
+                        <option value="bg-blue-600">🔵 Azul Rey</option>
+                        <option value="bg-indigo-600">🟣 Índigo / Violeta</option>
+                        <option value="bg-purple-600">🟣 Púrpura</option>
+                        <option value="bg-fuchsia-500">🟣 Fucsia</option>
+                        <option value="bg-rose-500">🔴 Rosa Coral</option>
+                        <option value="bg-rose-800">🔴 Granate / Vino</option>
+                        <option value="bg-red-600">🔴 Rojo Vivo</option>
+                        <option value="bg-orange-500">🟠 Naranja</option>
+                        <option value="bg-amber-500">🟡 Ámbar / Amarillo</option>
+                        <option value="bg-lime-500">🟢 Verde Lima</option>
+                        <option value="bg-emerald-500">🟢 Verde Esmeralda</option>
+                        <option value="bg-slate-700">⚫ Gris Oscuro / Slate</option>
                       </select>
                     </div>
 
