@@ -22,7 +22,11 @@
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzg0AF8VHKm9l-lzIkXyW80Kjgy_ViqBbeDpIZdmNVfGhii4v2xN1kDxUe7fgwk50BF3Q/exec";
 
     function App() {
-      const [projects, setProjects] = useState([]);
+      const [projects, setProjects] = useState(() => {
+        const saved = localStorage.getItem('workline_projects');
+        return saved ? JSON.parse(saved) : [];
+      });
+
       const [events, setEvents] = useState(() => {
         const savedEvents = localStorage.getItem('workline_events');
         return savedEvents ? JSON.parse(savedEvents) : [];
@@ -33,7 +37,7 @@
       const [viewMode, setViewMode] = useState('linea'); 
       const [statusFilter, setStatusFilter] = useState('todos'); 
       const [isLoading, setIsLoading] = useState(false);
-      const [isFetchingData, setIsFetchingData] = useState(true);
+      const [isFetchingData, setIsFetchingData] = useState(false);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -60,17 +64,18 @@
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
-      // CARGAR DATOS DESDE GOOGLE SHEETS
+      // Carga de datos desde la nube
       const loadProjectsFromCloud = async () => {
         setIsFetchingData(true);
         try {
           const response = await fetch(APPS_SCRIPT_URL);
           const result = await response.json();
-          if (result.status === "success" && result.projects) {
+          if (result.status === "success" && Array.isArray(result.projects)) {
             setProjects(result.projects);
+            localStorage.setItem('workline_projects', JSON.stringify(result.projects));
           }
         } catch (error) {
-          console.error("Error al cargar datos desde Google Sheets:", error);
+          console.error("Error al cargar desde Google Sheets:", error);
         }
         setIsFetchingData(false);
       };
@@ -78,6 +83,10 @@
       useEffect(() => {
         loadProjectsFromCloud();
       }, []);
+
+      useEffect(() => {
+        localStorage.setItem('workline_projects', JSON.stringify(projects));
+      }, [projects]);
 
       useEffect(() => {
         localStorage.setItem('workline_events', JSON.stringify(events));
@@ -101,41 +110,6 @@
         resetForm();
       };
 
-      // MIGRACIÓN ÚNICA DESDE NAVEGADOR A GOOGLE SHEETS
-      const handleSyncLocalToCloud = async () => {
-        const localSaved = localStorage.getItem('workline_projects');
-        if (!localSaved) {
-          alert("No hay proyectos guardados localmente para migrar.");
-          return;
-        }
-        const localProjects = JSON.parse(localSaved);
-        if (localProjects.length === 0) {
-          alert("No hay proyectos en el almacenamiento local.");
-          return;
-        }
-
-        if (!window.confirm(`Se subirán ${localProjects.length} proyectos guardados en tu navegador a Google Sheets. ¿Deseas continuar?`)) return;
-
-        setIsLoading(true);
-        try {
-          const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'syncLocal', projects: localProjects }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-          });
-          const result = await response.json();
-          if (result.status === "success") {
-            alert("¡Éxito! Tu información ya se encuentra guardada en la nube (Google Sheets).");
-            await loadProjectsFromCloud();
-          }
-        } catch (error) {
-          console.error("Error al migrar a la nube:", error);
-          alert("Ocurrió un error al intentar migrar la información.");
-        }
-        setIsLoading(false);
-      };
-
-      // ACTUALIZACIONES DE HISTORIAL
       const handleUpdateChange = (index, newText) => {
         const updated = [...updatesList];
         updated[index].text = newText;
@@ -163,15 +137,16 @@
           await loadProjectsFromCloud();
           if (selectedProject?.id === projectId) setSelectedProject(updatedProj);
         } catch (error) {
-          console.error("Error al actualizar:", error);
+          console.error("Error al actualizar historial:", error);
         }
         setIsLoading(false);
       };
 
-      // GUARDAR EN GOOGLE SHEETS
+      // GUARDAR ACTIVIDAD
       const handleSaveProject = async (e) => {
         e.preventDefault();
-        if (!title.trim()) return;
+        const cleanTitle = title.trim();
+        if (!cleanTitle) return;
 
         setIsLoading(true);
 
@@ -191,37 +166,49 @@
 
         const projectPayload = {
           id: projId,
-          title: title.trim(),
+          title: cleanTitle,
           percentage: Number(percentage),
           status,
           color,
           notes,
-          driveUrl,
+          driveUrl: driveUrl.trim(),
           updates: finalUpdates
         };
 
         try {
           const response = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({ action: 'saveProject', project: projectPayload }),
+            body: JSON.stringify({ 
+              action: 'saveProject', 
+              project: projectPayload,
+              activityName: cleanTitle 
+            }),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
           });
           const result = await response.json();
           if (result.status === "success") {
             await loadProjectsFromCloud();
             resetForm();
+          } else {
+            alert("Atención: Hubo un detalle al guardar en la nube. Verifique su conexión.");
           }
         } catch (error) {
-          console.error("Error al guardar en Google Sheets:", error);
-          alert("Error al guardar la información en la nube.");
+          console.error("Error enviando datos:", error);
+          // Respaldo local si falla la red
+          const updatedProjects = editId 
+            ? projects.map(p => p.id === editId ? projectPayload : p)
+            : [...projects, projectPayload];
+          setProjects(updatedProjects);
+          localStorage.setItem('workline_projects', JSON.stringify(updatedProjects));
+          resetForm();
         }
 
         setIsLoading(false);
       };
 
-      // ELIMINAR DE GOOGLE SHEETS Y DRIVE
+      // ELIMINAR ACTIVIDAD
       const handleDeleteProject = async (projectToDelete) => {
-        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" de la nube y su carpeta en Drive?`)) return;
+        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta en Google Drive?`)) return;
 
         setIsLoading(true);
         try {
@@ -238,7 +225,10 @@
           if (selectedProject?.id === projectToDelete.id) setSelectedProject(null);
           if (editId === projectToDelete.id) resetForm();
         } catch (error) {
-          console.error("Error al eliminar proyecto:", error);
+          console.error("Error eliminando proyecto:", error);
+          const filtered = projects.filter(p => p.id !== projectToDelete.id);
+          setProjects(filtered);
+          localStorage.setItem('workline_projects', JSON.stringify(filtered));
         }
         setIsLoading(false);
       };
@@ -372,8 +362,8 @@
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={loadProjectsFromCloud} className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded-lg border transition">
-                🔄 Recargar Datos Nube
+              <button onClick={loadProjectsFromCloud} className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded-lg border transition flex items-center gap-1">
+                🔄 Sincronizar Excel
               </button>
 
               <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
@@ -414,21 +404,6 @@
                 </div>
               ) : (
                 <div>
-                  {/* BOTÓN MIGRACIÓN ÚNICA A LA NUBE */}
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-xs text-blue-900 uppercase">Sincronización Única a Google Sheets</h3>
-                      <p className="text-xs text-blue-700">Haz clic aquí para respaldar tus proyectos locales actuales en tu hoja de cálculo de Google Drive.</p>
-                    </div>
-                    <button 
-                      onClick={handleSyncLocalToCloud} 
-                      disabled={isLoading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0"
-                    >
-                      ☁️ Subir Pendientes Locales a la Nube
-                    </button>
-                  </div>
-
                   <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
                     {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
                   </h2>
@@ -476,7 +451,7 @@
 
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                        Enlace de Carpeta en Google Drive (Se creará automáticamente al guardar si está vacío)
+                        Enlace de Carpeta en Google Drive (Se crea automáticamente al guardar si está vacío)
                       </label>
                       <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border rounded p-2 text-sm" />
                     </div>
@@ -648,7 +623,7 @@
               <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100">
                 {isFetchingData ? (
                   <div className="text-center py-16 text-gray-500 text-xs">
-                    <p className="animate-pulse font-bold text-sm">☁️ Cargando datos desde Google Sheets...</p>
+                    <p className="animate-pulse font-bold text-sm">☁️ Sincronizando con Google Sheets...</p>
                   </div>
                 ) : (
                   viewMode === 'linea' && (
@@ -660,8 +635,8 @@
                       <div className="space-y-6">
                         {filteredProjects.length === 0 ? (
                           <div className="text-center py-12 text-gray-400 text-xs">
-                            <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados en la nube.</p>
-                            <p>Abre el <strong>Panel Admin</strong> para anexar un pendiente o sincronizar tus datos locales.</p>
+                            <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados.</p>
+                            <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                           </div>
                         ) : (
                           filteredProjects.map((project) => (
