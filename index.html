@@ -22,11 +22,7 @@
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzg0AF8VHKm9l-lzIkXyW80Kjgy_ViqBbeDpIZdmNVfGhii4v2xN1kDxUe7fgwk50BF3Q/exec";
 
     function App() {
-      const [projects, setProjects] = useState(() => {
-        const saved = localStorage.getItem('workline_projects');
-        return saved ? JSON.parse(saved) : [];
-      });
-
+      const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState(() => {
         const savedEvents = localStorage.getItem('workline_events');
         return savedEvents ? JSON.parse(savedEvents) : [];
@@ -37,6 +33,7 @@
       const [viewMode, setViewMode] = useState('linea'); 
       const [statusFilter, setStatusFilter] = useState('todos'); 
       const [isLoading, setIsLoading] = useState(false);
+      const [isFetchingData, setIsFetchingData] = useState(true);
 
       // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,9 +60,24 @@
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
+      // CARGAR DATOS DESDE GOOGLE SHEETS
+      const loadProjectsFromCloud = async () => {
+        setIsFetchingData(true);
+        try {
+          const response = await fetch(APPS_SCRIPT_URL);
+          const result = await response.json();
+          if (result.status === "success" && result.projects) {
+            setProjects(result.projects);
+          }
+        } catch (error) {
+          console.error("Error al cargar datos desde Google Sheets:", error);
+        }
+        setIsFetchingData(false);
+      };
+
       useEffect(() => {
-        localStorage.setItem('workline_projects', JSON.stringify(projects));
-      }, [projects]);
+        loadProjectsFromCloud();
+      }, []);
 
       useEffect(() => {
         localStorage.setItem('workline_events', JSON.stringify(events));
@@ -89,7 +101,41 @@
         resetForm();
       };
 
-      // Funciones para manejar el Historial de Actualizaciones
+      // MIGRACIÓN ÚNICA DESDE NAVEGADOR A GOOGLE SHEETS
+      const handleSyncLocalToCloud = async () => {
+        const localSaved = localStorage.getItem('workline_projects');
+        if (!localSaved) {
+          alert("No hay proyectos guardados localmente para migrar.");
+          return;
+        }
+        const localProjects = JSON.parse(localSaved);
+        if (localProjects.length === 0) {
+          alert("No hay proyectos en el almacenamiento local.");
+          return;
+        }
+
+        if (!window.confirm(`Se subirán ${localProjects.length} proyectos guardados en tu navegador a Google Sheets. ¿Deseas continuar?`)) return;
+
+        setIsLoading(true);
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'syncLocal', projects: localProjects }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          const result = await response.json();
+          if (result.status === "success") {
+            alert("¡Éxito! Tu información ya se encuentra guardada en la nube (Google Sheets).");
+            await loadProjectsFromCloud();
+          }
+        } catch (error) {
+          console.error("Error al migrar a la nube:", error);
+          alert("Ocurrió un error al intentar migrar la información.");
+        }
+        setIsLoading(false);
+      };
+
+      // ACTUALIZACIONES DE HISTORIAL
       const handleUpdateChange = (index, newText) => {
         const updated = [...updatesList];
         updated[index].text = newText;
@@ -100,43 +146,34 @@
         setUpdatesList(updatesList.filter((_, i) => i !== index));
       };
 
-      const handleDeleteUpdateFromModal = (projectId, updateIndex) => {
-        setProjects(projects.map(p => {
-          if (p.id === projectId) {
-            const newUpdates = p.updates.filter((_, i) => i !== updateIndex);
-            const updatedProject = { ...p, updates: newUpdates };
-            if (selectedProject && selectedProject.id === projectId) {
-              setSelectedProject(updatedProject);
-            }
-            return updatedProject;
-          }
-          return p;
-        }));
+      const handleDeleteUpdateFromModal = async (projectId, updateIndex) => {
+        const proj = projects.find(p => p.id === projectId);
+        if (!proj) return;
+
+        const updatedUpdates = proj.updates.filter((_, i) => i !== updateIndex);
+        const updatedProj = { ...proj, updates: updatedUpdates };
+
+        setIsLoading(true);
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'saveProject', project: updatedProj }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          await loadProjectsFromCloud();
+          if (selectedProject?.id === projectId) setSelectedProject(updatedProj);
+        } catch (error) {
+          console.error("Error al actualizar:", error);
+        }
+        setIsLoading(false);
       };
 
+      // GUARDAR EN GOOGLE SHEETS
       const handleSaveProject = async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
 
         setIsLoading(true);
-        let finalDriveUrl = driveUrl;
-
-        // Si es un proyecto nuevo y no se introdujo URL, creamos la carpeta en Drive
-        if (!editId && !finalDriveUrl.trim()) {
-          try {
-            const response = await fetch(APPS_SCRIPT_URL, {
-              method: 'POST',
-              body: JSON.stringify({ activityName: title }),
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-            const result = await response.json();
-            if (result.status === "success") {
-              finalDriveUrl = result.folderUrl;
-            }
-          } catch (error) {
-            console.error("Error al crear carpeta:", error);
-          }
-        }
 
         const finalUpdates = [...updatesList];
         if (newUpdateText.trim()) {
@@ -146,63 +183,63 @@
           });
         }
 
-        if (editId) {
-          setProjects(projects.map(p => {
-            if (p.id === editId) {
-              return {
-                ...p,
-                title,
-                percentage: Number(percentage),
-                color,
-                status,
-                notes,
-                driveUrl: finalDriveUrl,
-                updates: finalUpdates
-              };
-            }
-            return p;
-          }));
-        } else {
+        let projId = editId;
+        if (!projId) {
           const nextNum = projects.length + 1;
-          const newId = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
-          const newProj = {
-            id: newId,
-            title: title.trim(),
-            percentage: Number(percentage),
-            color,
-            status,
-            notes,
-            driveUrl: finalDriveUrl,
-            updates: finalUpdates
-          };
-          setProjects([...projects, newProj]);
+          projId = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
+        }
+
+        const projectPayload = {
+          id: projId,
+          title: title.trim(),
+          percentage: Number(percentage),
+          status,
+          color,
+          notes,
+          driveUrl,
+          updates: finalUpdates
+        };
+
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'saveProject', project: projectPayload }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          const result = await response.json();
+          if (result.status === "success") {
+            await loadProjectsFromCloud();
+            resetForm();
+          }
+        } catch (error) {
+          console.error("Error al guardar en Google Sheets:", error);
+          alert("Error al guardar la información en la nube.");
         }
 
         setIsLoading(false);
-        resetForm();
       };
 
+      // ELIMINAR DE GOOGLE SHEETS Y DRIVE
       const handleDeleteProject = async (projectToDelete) => {
-        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta en Drive?`)) return;
+        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" de la nube y su carpeta en Drive?`)) return;
 
         setIsLoading(true);
-
-        if (projectToDelete.driveUrl) {
-          try {
-            await fetch(APPS_SCRIPT_URL, {
-              method: 'POST',
-              body: JSON.stringify({ action: 'delete', folderUrl: projectToDelete.driveUrl }),
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            });
-          } catch (error) {
-            console.error("Error al eliminar carpeta:", error);
-          }
+        try {
+          await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'deleteProject',
+              id: projectToDelete.id,
+              folderUrl: projectToDelete.driveUrl
+            }),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          await loadProjectsFromCloud();
+          if (selectedProject?.id === projectToDelete.id) setSelectedProject(null);
+          if (editId === projectToDelete.id) resetForm();
+        } catch (error) {
+          console.error("Error al eliminar proyecto:", error);
         }
-
-        setProjects(projects.filter(p => p.id !== projectToDelete.id));
-        if (selectedProject?.id === projectToDelete.id) setSelectedProject(null);
-        if (editId === projectToDelete.id) resetForm();
-
         setIsLoading(false);
       };
 
@@ -335,6 +372,10 @@
             </div>
 
             <div className="flex items-center gap-2">
+              <button onClick={loadProjectsFromCloud} className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded-lg border transition">
+                🔄 Recargar Datos Nube
+              </button>
+
               <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
                 <button onClick={() => setViewMode('linea')} className={`px-3 py-1 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}>
                   📊 Vista Línea
@@ -373,6 +414,21 @@
                 </div>
               ) : (
                 <div>
+                  {/* BOTÓN MIGRACIÓN ÚNICA A LA NUBE */}
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-xs text-blue-900 uppercase">Sincronización Única a Google Sheets</h3>
+                      <p className="text-xs text-blue-700">Haz clic aquí para respaldar tus proyectos locales actuales en tu hoja de cálculo de Google Drive.</p>
+                    </div>
+                    <button 
+                      onClick={handleSyncLocalToCloud} 
+                      disabled={isLoading}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0"
+                    >
+                      ☁️ Subir Pendientes Locales a la Nube
+                    </button>
+                  </div>
+
                   <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
                     {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
                   </h2>
@@ -430,7 +486,7 @@
                       <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border rounded p-2 text-sm"></textarea>
                     </div>
 
-                    {/* CAJA DE HISTORIAL DE ACTUALIZACIONES REHABILITADA */}
+                    {/* CAJA DE HISTORIAL DE ACTUALIZACIONES */}
                     <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
                         Historial de Actualizaciones (Editar / Eliminar)
@@ -488,7 +544,7 @@
                         )}
                         <button type="submit" disabled={isLoading} className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2">
                           {isLoading && <span className="animate-spin">⏳</span>}
-                          {isLoading ? 'Procesando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
+                          {isLoading ? 'Guardando en Nube...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
                         </button>
                       </div>
                     </div>
@@ -590,42 +646,48 @@
 
               {/* LISTA DE PENDIENTES */}
               <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100">
-                {viewMode === 'linea' && (
-                  <div>
-                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b pb-2 mb-6 ml-14 md:ml-16">
-                      <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
-                    </div>
-
-                    <div className="space-y-6">
-                      {filteredProjects.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 text-xs">
-                          <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados.</p>
-                          <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
-                        </div>
-                      ) : (
-                        filteredProjects.map((project) => (
-                          <div key={project.id} className="flex items-start group relative">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 rounded-full flex items-center justify-center font-bold text-xs text-gray-700 shadow mr-3 mt-1">
-                              {project.id}
-                            </div>
-
-                            <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
-                              <div className="flex justify-between items-center mb-1 pr-2">
-                                <span className="font-bold text-xs text-gray-800">{project.title}</span>
-                                <span className="font-extrabold text-xs text-blue-600">{project.percentage}%</span>
-                              </div>
-
-                              <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full">
-                                <div className={`h-full ${project.color} rounded-full transition-all duration-500`} style={{ width: `${project.percentage}%` }}></div>
-                              </div>
-                            </div>
-
-                            <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                {isFetchingData ? (
+                  <div className="text-center py-16 text-gray-500 text-xs">
+                    <p className="animate-pulse font-bold text-sm">☁️ Cargando datos desde Google Sheets...</p>
                   </div>
+                ) : (
+                  viewMode === 'linea' && (
+                    <div>
+                      <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b pb-2 mb-6 ml-14 md:ml-16">
+                        <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
+                      </div>
+
+                      <div className="space-y-6">
+                        {filteredProjects.length === 0 ? (
+                          <div className="text-center py-12 text-gray-400 text-xs">
+                            <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados en la nube.</p>
+                            <p>Abre el <strong>Panel Admin</strong> para anexar un pendiente o sincronizar tus datos locales.</p>
+                          </div>
+                        ) : (
+                          filteredProjects.map((project) => (
+                            <div key={project.id} className="flex items-start group relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 rounded-full flex items-center justify-center font-bold text-xs text-gray-700 shadow mr-3 mt-1">
+                                {project.id}
+                              </div>
+
+                              <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
+                                <div className="flex justify-between items-center mb-1 pr-2">
+                                  <span className="font-bold text-xs text-gray-800">{project.title}</span>
+                                  <span className="font-extrabold text-xs text-blue-600">{project.percentage}%</span>
+                                </div>
+
+                                <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full">
+                                  <div className={`h-full ${project.color} rounded-full transition-all duration-500`} style={{ width: `${project.percentage}%` }}></div>
+                                </div>
+                              </div>
+
+                              <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
 
