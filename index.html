@@ -21,10 +21,108 @@
 
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiEjQ0xG31h8kowtqg1SgkE0nYqn1UHmkz12ba72oGmtp_Re_LVRQWvicNNPenzVEh9A/exec";
 
+    // 9 Proyectos Iniciales Predefinidos
+    const DEFAULT_PROJECTS = [
+      {
+        id: "01",
+        title: "Negociación CRM Odoo",
+        percentage: 80,
+        status: "en-tiempo",
+        color: "bg-teal-600",
+        notes: "Negociación de licencia e implementación del CRM Odoo para OCV Monterrey.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-01", text: "Propuesta comercial recibida y en revisión." }]
+      },
+      {
+        id: "02",
+        title: "Formulario de Salida OCV",
+        percentage: 95,
+        status: "en-tiempo",
+        color: "bg-emerald-500",
+        notes: "Formulario de evaluación y recolección de métricas al concluir eventos.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-05", text: "Validación de campos finales completada." }]
+      },
+      {
+        id: "03",
+        title: "Indicadores de Agosto",
+        percentage: 100,
+        status: "completado",
+        color: "bg-blue-600",
+        notes: "Cierre de reporte y presentación ejecutiva de resultados de agosto.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-08-31", text: "Reporte mensual concluido y enviado." }]
+      },
+      {
+        id: "04",
+        title: "Seguimiento API 370",
+        percentage: 60,
+        status: "demorado",
+        color: "bg-amber-500",
+        notes: "Integración de API para consulta de disponibilidad y reservaciones.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-10", text: "En espera de credenciales de pruebas por parte del proveedor." }]
+      },
+      {
+        id: "05",
+        title: "Indicadores de Pasaporte Nuevo León",
+        percentage: 40,
+        status: "en-tiempo",
+        color: "bg-sky-400",
+        notes: "Métricas de uso y registros de la app Pasaporte Nuevo León.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-08", text: "Estructura de base de datos finalizada." }]
+      },
+      {
+        id: "06",
+        title: "Página de Anfitriones Autorizados",
+        percentage: 30,
+        status: "detenido",
+        color: "bg-red-600",
+        notes: "Portal para certificación de prestadores de servicios turísticos.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-12", text: "Pausado temporalmente por revisión presupuestal." }]
+      },
+      {
+        id: "07",
+        title: "Conectar Plaza Sésamo a PGD",
+        percentage: 50,
+        status: "en-tiempo",
+        color: "bg-indigo-600",
+        notes: "Vinculación del inventario y venta de accesos mediante PGD.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-03", text: "Pruebas de conexión de webhooks en proceso." }]
+      },
+      {
+        id: "08",
+        title: "Reporte Control de Firma Electrónica",
+        percentage: 85,
+        status: "en-tiempo",
+        color: "bg-purple-600",
+        notes: "Módulo de gestión y seguimiento de firmas digitales de convenios.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-14", text: "Integración con token digital en etapa final." }]
+      },
+      {
+        id: "09",
+        title: "Enfoque Neuromarketing y Marihuana",
+        percentage: 20,
+        status: "demorado",
+        color: "bg-orange-500",
+        notes: "Estudio de mercado enfocado en tendencias de turismo de salud.",
+        driveUrl: "https://drive.google.com/drive/folders/1kuDMYGhfVvUOe1BxlD9Ji-Yb2-ijSlhT",
+        updates: [{ date: "2026-09-02", text: "Definición de muestra y cuestionarios iniciales." }]
+      }
+    ];
+
     function App() {
       const [projects, setProjects] = useState(() => {
         const saved = localStorage.getItem('workline_projects');
-        return saved ? JSON.parse(saved) : [];
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return parsed.length > 0 ? parsed : DEFAULT_PROJECTS;
+        }
+        return DEFAULT_PROJECTS;
       });
 
       const [events, setEvents] = useState(() => {
@@ -89,7 +187,7 @@
         resetForm();
       };
 
-      // FUNCIÓN PARA RELLENAR GOOGLE SHEETS (Modo seguro no-cors)
+      // FUNCIÓN PARA RELLENAR GOOGLE SHEETS
       const handleForcePushToCloud = async () => {
         if (projects.length === 0) {
           alert("No hay proyectos cargados en pantalla para enviar.");
