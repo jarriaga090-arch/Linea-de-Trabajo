@@ -23,17 +23,8 @@
 
     const REFRESH_MS = 60000; // actualización automática desde Google Sheets cada minuto
 
-    const DEFAULT_PROJECTS = [
-      { id: "01", title: "Negociación CRM Odoo", percentage: 80, status: "en-tiempo", color: "bg-teal-600", notes: "Negociación de licencia e implementación del CRM Odoo para OCV Monterrey.", driveUrl: "", updates: [{ date: "2026-09-01", text: "Propuesta comercial recibida y en revisión." }] },
-      { id: "02", title: "Formulario de Salida OCV", percentage: 95, status: "en-tiempo", color: "bg-emerald-500", notes: "Formulario de evaluación y recolección de métricas al concluir eventos.", driveUrl: "", updates: [{ date: "2026-09-05", text: "Validación de campos finales completada." }] },
-      { id: "03", title: "Indicadores de Agosto", percentage: 100, status: "completado", color: "bg-blue-600", notes: "Cierre de reporte y presentación ejecutiva de resultados de agosto.", driveUrl: "", updates: [{ date: "2026-08-31", text: "Reporte mensual concluido y enviado." }] },
-      { id: "04", title: "Seguimiento API 370", percentage: 60, status: "demorado", color: "bg-amber-500", notes: "Integración de API para consulta de disponibilidad y reservaciones.", driveUrl: "", updates: [{ date: "2026-09-10", text: "En espera de credenciales de pruebas por parte del proveedor." }] },
-      { id: "05", title: "Indicadores de Pasaporte Nuevo León", percentage: 40, status: "en-tiempo", color: "bg-sky-400", notes: "Métricas de uso y registros de la app Pasaporte Nuevo León.", driveUrl: "", updates: [{ date: "2026-09-08", text: "Estructura de base de datos finalizada." }] },
-      { id: "06", title: "Página de Anfitriones Autorizados", percentage: 30, status: "detenido", color: "bg-red-600", notes: "Portal para certificación de prestadores de servicios turísticos.", driveUrl: "", updates: [{ date: "2026-09-12", text: "Pausado temporalmente por revisión presupuestal." }] },
-      { id: "07", title: "Conectar Plaza Sésamo a PGD", percentage: 50, status: "en-tiempo", color: "bg-indigo-600", notes: "Vinculación del inventario y venta de accesos mediante PGD.", driveUrl: "", updates: [{ date: "2026-09-03", text: "Pruebas de conexión de webhooks en proceso." }] },
-      { id: "08", title: "Reporte Control de Firma Electrónica", percentage: 85, status: "en-tiempo", color: "bg-purple-600", notes: "Módulo de gestión y seguimiento de firmas digitales de convenios.", driveUrl: "", updates: [{ date: "2026-09-14", text: "Integración con token digital en etapa final." }] },
-      { id: "09", title: "Enfoque Neuromarketing y Marihuana", percentage: 20, status: "demorado", color: "bg-orange-500", notes: "Estudio de mercado enfocado en tendencias de turismo de salud.", driveUrl: "", updates: [{ date: "2026-09-02", text: "Definición de muestra y cuestionarios iniciales." }] }
-    ];
+    // Lista vacía: ahora la app se alimenta exclusivamente de la base de datos en Drive
+    const DEFAULT_PROJECTS = [];
 
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -54,7 +45,6 @@
     }
 
     function App() {
-      // 1. ELIMINAMOS LA CACHÉ LOCAL. Inicializamos vacío.
       const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState([]);
 
@@ -91,7 +81,6 @@
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
-      // 2. Carga DIRECTA y obligatoria desde Google Sheets al iniciar
       const loadFromCloud = async (silent = false) => {
         if (busyRef.current) return;
         if (!silent) setSyncState('loading');
@@ -104,7 +93,7 @@
             setCloudEmpty(false);
           } else {
             setCloudEmpty(true);
-            setProjects(DEFAULT_PROJECTS); // Solo carga los defaults si el Excel está vacío
+            setProjects([]);
           }
 
           if (data.eventsSeeded) {
@@ -443,8 +432,7 @@
           {/* AVISO: HOJA VACÍA */}
           {cloudEmpty && syncState === 'ok' && (
             <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
-              La hoja de Google Sheets todavía no tiene proyectos, por eso ves los pendientes iniciales de demostración.
-              Inicia sesión como administrador y pulsa <strong>“Enviar Datos al Excel”</strong> para cargarlos y crear sus carpetas en Drive.
+              La hoja de Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> e ingresa tus nuevos pendientes para empezar a registrar.
             </div>
           )}
 
@@ -752,7 +740,7 @@
                         </div>
                       ) : filteredProjects.length === 0 ? (
                         <div className="text-center py-12 text-gray-400 text-xs">
-                          <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados.</p>
+                          <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados en la base de datos.</p>
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                         </div>
                       ) : (
@@ -837,7 +825,7 @@
                       📁 Abrir Carpeta en Google Drive ➔
                     </a>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Este pendiente aún no tiene carpeta. Un administrador puede crearla con “Enviar Datos al Excel” o al guardar el pendiente.</p>
+                    <p className="text-xs text-gray-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
                   )}
                 </div>
 
