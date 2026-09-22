@@ -19,11 +19,18 @@
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
+    // ⚠️ IMPORTANTE: esta debe ser la URL /exec que aparece en
+    // Apps Script → Implementar → Administrar implementaciones,
+    // de la implementación que SÍ tiene el código actual (Code.gs).
+    // Si editaste el script y no publicaste "Nueva versión", esta URL
+    // sigue sirviendo código viejo aunque el editor muestre el nuevo.
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiEjQ0xG31h8kowtqg1SgkE0nYqn1UHmkz12ba72oGmtp_Re_LVRQWvicNNPenzVEh9A/exec";
 
     const REFRESH_MS = 60000; // actualización automática desde Google Sheets cada minuto
 
-    // Lista vacía: ahora la app se alimenta exclusivamente de la base de datos en Drive
+    // Lista vacía: la app se alimenta exclusivamente de la base de datos en Sheets.
+    // Si algo falla al leer, aquí NO aparecerán proyectos "de respaldo" que puedan
+    // confundirte pensando que sí está leyendo.
     const DEFAULT_PROJECTS = [];
 
     async function cloudRequest(payload) {
@@ -32,14 +39,26 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        throw new Error('La respuesta no fue JSON (¿la URL apunta a un login de Google o a una página caída?): ' + raw.slice(0, 200));
+      }
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
 
     async function cloudLoad() {
       const res = await fetch(`${APPS_SCRIPT_URL}?t=${Date.now()}`);
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        throw new Error('La respuesta no fue JSON (¿la URL apunta a un login de Google o a una página caída?): ' + raw.slice(0, 200));
+      }
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
@@ -54,9 +73,11 @@
       const [statusFilter, setStatusFilter] = useState('todos');
       const [isLoading, setIsLoading] = useState(false);
 
-      const [syncState, setSyncState] = useState('loading'); 
+      const [syncState, setSyncState] = useState('loading');
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
+      const [lastError, setLastError] = useState('');
+      const [debugInfo, setDebugInfo] = useState(null);
       const busyRef = useRef(false);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -87,6 +108,8 @@
         try {
           const data = await cloudLoad();
 
+          setDebugInfo(data.debug || null);
+
           if (data.projectsSeeded) {
             setProjects(data.projects);
             setSelectedProject(prev => prev ? (data.projects.find(p => p.id === prev.id) || null) : prev);
@@ -102,10 +125,12 @@
             setEvents([]);
           }
 
+          setLastError('');
           setSyncState('ok');
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al leer de Google Sheets:", error);
+          setLastError(error.message || String(error));
           setSyncState('error');
         }
       };
@@ -150,6 +175,7 @@
           if (Array.isArray(data.projects)) setProjects(data.projects);
           if (Array.isArray(data.events)) setEvents(data.events);
           setCloudEmpty(false);
+          setLastError('');
           setSyncState('ok');
           setLastSync(new Date());
 
@@ -161,6 +187,7 @@
           alert(msg);
         } catch (error) {
           console.error("Error al sincronizar:", error);
+          setLastError(error.message || String(error));
           setSyncState('error');
           alert(`No se pudo sincronizar con Google Sheets.\n\n${error.message}`);
         } finally {
@@ -251,6 +278,7 @@
           if (data.warning) alert(`El pendiente se guardó, pero:\n\n${data.warning}`);
         } catch (error) {
           console.error("Error al guardar en Google Sheets:", error);
+          setLastError(error.message || String(error));
           setSyncState('error');
           alert(`No se guardó en Google Sheets. Tus datos siguen en el formulario para que puedas reintentar.\n\n${error.message}`);
         } finally {
@@ -409,8 +437,16 @@
             <p className="text-[11px] font-semibold mt-2">
               {syncState === 'loading' && <span className="text-gray-500">⏳ Descargando base de datos...</span>}
               {syncState === 'ok' && <span className="text-green-700">☁️ Sincronizado con Google Sheets · {lastSyncText}</span>}
-              {syncState === 'error' && <span className="text-red-600">⚠️ Sin conexión con Google Sheets. Comprueba tu internet.</span>}
+              {syncState === 'error' && <span className="text-red-600">⚠️ Sin conexión con Google Sheets.</span>}
             </p>
+            {syncState === 'ok' && debugInfo && (
+              <p className="text-[10px] text-gray-400 mt-1">
+                Hoja: {debugInfo.spreadsheetName} / {debugInfo.projectsSheetName} · Filas con datos: {Math.max(debugInfo.projectsLastRow - 1, 0)}
+              </p>
+            )}
+            {syncState === 'error' && lastError && (
+              <p className="text-[10px] text-red-500 mt-1 max-w-xl mx-auto break-words">{lastError}</p>
+            )}
             <div className="absolute right-0 top-0 flex gap-2">
               {isAuthenticated ? (
                 <>
@@ -432,7 +468,7 @@
           {/* AVISO: HOJA VACÍA */}
           {cloudEmpty && syncState === 'ok' && (
             <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
-              La hoja de Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> e ingresa tus nuevos pendientes para empezar a registrar.
+              La hoja de Google Sheets se encuentra vacía (0 filas con datos en la pestaña "{debugInfo ? debugInfo.projectsSheetName : 'Proyectos'}"). Abre el <strong>Panel Admin</strong> e ingresa tus nuevos pendientes para empezar a registrar.
             </div>
           )}
 
@@ -558,7 +594,7 @@
 
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                        Enlace de Carpeta en Google Drive (si lo dejas vacío, se crea una carpeta con el nombre del pendiente al guardar)
+                        Enlace de Carpeta en Google Drive (se crea/actualiza automáticamente al guardar)
                       </label>
                       <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border rounded p-2 text-sm" />
                     </div>
