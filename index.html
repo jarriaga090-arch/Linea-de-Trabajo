@@ -21,106 +21,20 @@
 
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiEjQ0xG31h8kowtqg1SgkE0nYqn1UHmkz12ba72oGmtp_Re_LVRQWvicNNPenzVEh9A/exec";
 
-    const REFRESH_MS = 60000; // actualización automática desde Google Sheets
+    const REFRESH_MS = 60000; // actualización automática desde Google Sheets cada minuto
 
-    // 9 Proyectos Iniciales Predefinidos
-    // driveUrl va vacío a propósito: al enviarlos a la hoja, el script crea una carpeta por pendiente.
     const DEFAULT_PROJECTS = [
-      {
-        id: "01",
-        title: "Negociación CRM Odoo",
-        percentage: 80,
-        status: "en-tiempo",
-        color: "bg-teal-600",
-        notes: "Negociación de licencia e implementación del CRM Odoo para OCV Monterrey.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-01", text: "Propuesta comercial recibida y en revisión." }]
-      },
-      {
-        id: "02",
-        title: "Formulario de Salida OCV",
-        percentage: 95,
-        status: "en-tiempo",
-        color: "bg-emerald-500",
-        notes: "Formulario de evaluación y recolección de métricas al concluir eventos.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-05", text: "Validación de campos finales completada." }]
-      },
-      {
-        id: "03",
-        title: "Indicadores de Agosto",
-        percentage: 100,
-        status: "completado",
-        color: "bg-blue-600",
-        notes: "Cierre de reporte y presentación ejecutiva de resultados de agosto.",
-        driveUrl: "",
-        updates: [{ date: "2026-08-31", text: "Reporte mensual concluido y enviado." }]
-      },
-      {
-        id: "04",
-        title: "Seguimiento API 370",
-        percentage: 60,
-        status: "demorado",
-        color: "bg-amber-500",
-        notes: "Integración de API para consulta de disponibilidad y reservaciones.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-10", text: "En espera de credenciales de pruebas por parte del proveedor." }]
-      },
-      {
-        id: "05",
-        title: "Indicadores de Pasaporte Nuevo León",
-        percentage: 40,
-        status: "en-tiempo",
-        color: "bg-sky-400",
-        notes: "Métricas de uso y registros de la app Pasaporte Nuevo León.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-08", text: "Estructura de base de datos finalizada." }]
-      },
-      {
-        id: "06",
-        title: "Página de Anfitriones Autorizados",
-        percentage: 30,
-        status: "detenido",
-        color: "bg-red-600",
-        notes: "Portal para certificación de prestadores de servicios turísticos.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-12", text: "Pausado temporalmente por revisión presupuestal." }]
-      },
-      {
-        id: "07",
-        title: "Conectar Plaza Sésamo a PGD",
-        percentage: 50,
-        status: "en-tiempo",
-        color: "bg-indigo-600",
-        notes: "Vinculación del inventario y venta de accesos mediante PGD.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-03", text: "Pruebas de conexión de webhooks en proceso." }]
-      },
-      {
-        id: "08",
-        title: "Reporte Control de Firma Electrónica",
-        percentage: 85,
-        status: "en-tiempo",
-        color: "bg-purple-600",
-        notes: "Módulo de gestión y seguimiento de firmas digitales de convenios.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-14", text: "Integración con token digital en etapa final." }]
-      },
-      {
-        id: "09",
-        title: "Enfoque Neuromarketing y Marihuana",
-        percentage: 20,
-        status: "demorado",
-        color: "bg-orange-500",
-        notes: "Estudio de mercado enfocado en tendencias de turismo de salud.",
-        driveUrl: "",
-        updates: [{ date: "2026-09-02", text: "Definición de muestra y cuestionarios iniciales." }]
-      }
+      { id: "01", title: "Negociación CRM Odoo", percentage: 80, status: "en-tiempo", color: "bg-teal-600", notes: "Negociación de licencia e implementación del CRM Odoo para OCV Monterrey.", driveUrl: "", updates: [{ date: "2026-09-01", text: "Propuesta comercial recibida y en revisión." }] },
+      { id: "02", title: "Formulario de Salida OCV", percentage: 95, status: "en-tiempo", color: "bg-emerald-500", notes: "Formulario de evaluación y recolección de métricas al concluir eventos.", driveUrl: "", updates: [{ date: "2026-09-05", text: "Validación de campos finales completada." }] },
+      { id: "03", title: "Indicadores de Agosto", percentage: 100, status: "completado", color: "bg-blue-600", notes: "Cierre de reporte y presentación ejecutiva de resultados de agosto.", driveUrl: "", updates: [{ date: "2026-08-31", text: "Reporte mensual concluido y enviado." }] },
+      { id: "04", title: "Seguimiento API 370", percentage: 60, status: "demorado", color: "bg-amber-500", notes: "Integración de API para consulta de disponibilidad y reservaciones.", driveUrl: "", updates: [{ date: "2026-09-10", text: "En espera de credenciales de pruebas por parte del proveedor." }] },
+      { id: "05", title: "Indicadores de Pasaporte Nuevo León", percentage: 40, status: "en-tiempo", color: "bg-sky-400", notes: "Métricas de uso y registros de la app Pasaporte Nuevo León.", driveUrl: "", updates: [{ date: "2026-09-08", text: "Estructura de base de datos finalizada." }] },
+      { id: "06", title: "Página de Anfitriones Autorizados", percentage: 30, status: "detenido", color: "bg-red-600", notes: "Portal para certificación de prestadores de servicios turísticos.", driveUrl: "", updates: [{ date: "2026-09-12", text: "Pausado temporalmente por revisión presupuestal." }] },
+      { id: "07", title: "Conectar Plaza Sésamo a PGD", percentage: 50, status: "en-tiempo", color: "bg-indigo-600", notes: "Vinculación del inventario y venta de accesos mediante PGD.", driveUrl: "", updates: [{ date: "2026-09-03", text: "Pruebas de conexión de webhooks en proceso." }] },
+      { id: "08", title: "Reporte Control de Firma Electrónica", percentage: 85, status: "en-tiempo", color: "bg-purple-600", notes: "Módulo de gestión y seguimiento de firmas digitales de convenios.", driveUrl: "", updates: [{ date: "2026-09-14", text: "Integración con token digital en etapa final." }] },
+      { id: "09", title: "Enfoque Neuromarketing y Marihuana", percentage: 20, status: "demorado", color: "bg-orange-500", notes: "Estudio de mercado enfocado en tendencias de turismo de salud.", driveUrl: "", updates: [{ date: "2026-09-02", text: "Definición de muestra y cuestionarios iniciales." }] }
     ];
 
-    // ---------- Comunicación con Google Apps Script ----------
-    // Se usa Content-Type text/plain para evitar el preflight de CORS.
-    // La respuesta SÍ se puede leer (antes con no-cors era opaca y la página nunca supo la URL de la carpeta).
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -139,21 +53,10 @@
       return data;
     }
 
-    // Copia local (solo como caché para que la página cargue rápido / sin conexión)
-    function readCache(key, fallback) {
-      try {
-        const saved = localStorage.getItem(key);
-        if (!saved) return fallback;
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) && (parsed.length > 0 || key === 'workline_events') ? parsed : fallback;
-      } catch (e) {
-        return fallback;
-      }
-    }
-
     function App() {
-      const [projects, setProjects] = useState(() => readCache('workline_projects', DEFAULT_PROJECTS));
-      const [events, setEvents] = useState(() => readCache('workline_events', []));
+      // 1. ELIMINAMOS LA CACHÉ LOCAL. Inicializamos vacío.
+      const [projects, setProjects] = useState([]);
+      const [events, setEvents] = useState([]);
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -161,19 +64,16 @@
       const [statusFilter, setStatusFilter] = useState('todos');
       const [isLoading, setIsLoading] = useState(false);
 
-      // Estado de sincronización con Google Sheets
-      const [syncState, setSyncState] = useState('loading'); // loading | ok | error
+      const [syncState, setSyncState] = useState('loading'); 
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
-      const busyRef = useRef(false); // evita que la actualización automática pise un guardado en curso
+      const busyRef = useRef(false);
 
-      // Autenticación
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [loginUser, setLoginUser] = useState('');
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
-      // Formulario Proyectos
       const [editId, setEditId] = useState(null);
       const [title, setTitle] = useState('');
       const [percentage, setPercentage] = useState(0);
@@ -184,7 +84,6 @@
       const [updatesList, setUpdatesList] = useState([]);
       const [newUpdateText, setNewUpdateText] = useState('');
 
-      // Formulario Eventos
       const [isAddingEvent, setIsAddingEvent] = useState(false);
       const [eventTitle, setEventTitle] = useState('');
       const [eventDate, setEventDate] = useState('');
@@ -192,16 +91,7 @@
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
-      // Caché local
-      useEffect(() => {
-        try { localStorage.setItem('workline_projects', JSON.stringify(projects)); } catch (e) {}
-      }, [projects]);
-
-      useEffect(() => {
-        try { localStorage.setItem('workline_events', JSON.stringify(events)); } catch (e) {}
-      }, [events]);
-
-      // ---------- Carga desde Google Sheets (fuente de verdad) ----------
+      // 2. Carga DIRECTA y obligatoria desde Google Sheets al iniciar
       const loadFromCloud = async (silent = false) => {
         if (busyRef.current) return;
         if (!silent) setSyncState('loading');
@@ -213,10 +103,15 @@
             setSelectedProject(prev => prev ? (data.projects.find(p => p.id === prev.id) || null) : prev);
             setCloudEmpty(false);
           } else {
-            setCloudEmpty(true); // la hoja aún no tiene proyectos: se conserva lo que hay en pantalla
+            setCloudEmpty(true);
+            setProjects(DEFAULT_PROJECTS); // Solo carga los defaults si el Excel está vacío
           }
 
-          if (data.eventsSeeded) setEvents(data.events);
+          if (data.eventsSeeded) {
+            setEvents(data.events);
+          } else {
+            setEvents([]);
+          }
 
           setSyncState('ok');
           setLastSync(new Date());
@@ -252,13 +147,11 @@
         resetForm();
       };
 
-      // ---------- Enviar TODO lo que hay en pantalla a Google Sheets y crear carpetas faltantes ----------
       const handleForcePushToCloud = async () => {
         if (projects.length === 0) {
           alert("No hay proyectos cargados en pantalla para enviar.");
           return;
         }
-
         if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones que ves en pantalla, y se crearán en Drive las carpetas que falten. ¿Deseas continuar?`)) return;
 
         busyRef.current = true;
@@ -334,7 +227,6 @@
 
         let projId = editId;
         if (!projId) {
-          // Siguiente número libre (no se repite aunque se hayan eliminado pendientes)
           const nums = projects.map(p => parseInt(p.id, 10)).filter(n => !isNaN(n));
           const nextNum = (nums.length ? Math.max(...nums) : 0) + 1;
           projId = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
@@ -354,7 +246,6 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          // El script crea la carpeta en Drive (si no tiene) y devuelve el proyecto con su enlace
           const data = await cloudRequest({ action: 'saveProject', project: projectPayload });
           const saved = data.project || projectPayload;
 
@@ -527,9 +418,9 @@
               Secretaría de Turismo y OCV
             </p>
             <p className="text-[11px] font-semibold mt-2">
-              {syncState === 'loading' && <span className="text-gray-500">⏳ Conectando con Google Sheets...</span>}
+              {syncState === 'loading' && <span className="text-gray-500">⏳ Descargando base de datos...</span>}
               {syncState === 'ok' && <span className="text-green-700">☁️ Sincronizado con Google Sheets · {lastSyncText}</span>}
-              {syncState === 'error' && <span className="text-red-600">⚠️ Sin conexión con Google Sheets. Estás viendo la última copia guardada en este navegador; los cambios no se guardarán hasta reconectar.</span>}
+              {syncState === 'error' && <span className="text-red-600">⚠️ Sin conexión con Google Sheets. Comprueba tu internet.</span>}
             </p>
             <div className="absolute right-0 top-0 flex gap-2">
               {isAuthenticated ? (
@@ -552,7 +443,7 @@
           {/* AVISO: HOJA VACÍA */}
           {cloudEmpty && syncState === 'ok' && (
             <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
-              La hoja de Google Sheets todavía no tiene proyectos, por eso ves los pendientes iniciales de este navegador.
+              La hoja de Google Sheets todavía no tiene proyectos, por eso ves los pendientes iniciales de demostración.
               Inicia sesión como administrador y pulsa <strong>“Enviar Datos al Excel”</strong> para cargarlos y crear sus carpetas en Drive.
             </div>
           )}
@@ -618,7 +509,6 @@
                 </div>
               ) : (
                 <div>
-                  {/* BOTÓN PARA RELLENAR EL EXCEL */}
                   <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-3">
                     <div>
                       <h3 className="font-bold text-xs text-blue-900 uppercase">Rellenar Excel en Google Drive</h3>
@@ -856,7 +746,11 @@
                     </div>
 
                     <div className="space-y-6">
-                      {filteredProjects.length === 0 ? (
+                      {syncState === 'loading' && projects.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 text-xs font-bold">
+                          Descargando pendientes de la nube... ⏳
+                        </div>
+                      ) : filteredProjects.length === 0 ? (
                         <div className="text-center py-12 text-gray-400 text-xs">
                           <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados.</p>
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
