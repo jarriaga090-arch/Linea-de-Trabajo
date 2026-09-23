@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-[#F8FAFC] text-[#1E293B] min-h-screen font-sans">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -19,26 +19,10 @@
     const AUTH_USER = "Arriaga";
     const AUTH_PASS = "Italia90";
 
-    // ⚠️ IMPORTANTE: esta debe ser la URL /exec que aparece en
-    // Apps Script → Implementar → Administrar implementaciones,
-    // de la implementación que SÍ tiene el código actual (Code.gs).
-    // Si editaste el script y no publicaste "Nueva versión", esta URL
-    // sigue sirviendo código viejo aunque el editor muestre el nuevo.
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
 
-    const REFRESH_MS = 60000; // actualización automática desde Google Sheets cada minuto
-
-    // Lista vacía: la app se alimenta exclusivamente de la base de datos en Sheets.
-    // Si algo falla al leer, aquí NO aparecerán proyectos "de respaldo" que puedan
-    // confundirte pensando que sí está leyendo.
+    const REFRESH_MS = 60000;
     const DEFAULT_PROJECTS = [];
-
-    const KANBAN_COLUMNS = [
-      { key: 'en-tiempo', label: 'En Tiempo', emoji: '🟢', bg: 'bg-green-50', border: 'border-green-200' },
-      { key: 'demorado', label: 'Demorado', emoji: '🟡', bg: 'bg-yellow-50', border: 'border-yellow-200' },
-      { key: 'detenido', label: 'Detenido', emoji: '🔴', bg: 'bg-red-50', border: 'border-red-200' },
-      { key: 'completado', label: 'Completado', emoji: '🔵', bg: 'bg-blue-50', border: 'border-blue-200' }
-    ];
 
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -46,26 +30,14 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
-      const raw = await res.text();
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        throw new Error('La respuesta no fue JSON (¿la URL apunta a un login de Google o a una página caída?): ' + raw.slice(0, 200));
-      }
+      const data = await res.json();
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
 
     async function cloudLoad() {
       const res = await fetch(`${APPS_SCRIPT_URL}?t=${Date.now()}`);
-      const raw = await res.text();
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        throw new Error('La respuesta no fue JSON (¿la URL apunta a un login de Google o a una página caída?): ' + raw.slice(0, 200));
-      }
+      const data = await res.json();
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
@@ -80,11 +52,9 @@
       const [statusFilter, setStatusFilter] = useState('todos');
       const [isLoading, setIsLoading] = useState(false);
 
-      const [syncState, setSyncState] = useState('loading');
+      const [syncState, setSyncState] = useState('loading'); 
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
-      const [lastError, setLastError] = useState('');
-      const [debugInfo, setDebugInfo] = useState(null);
       const busyRef = useRef(false);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -95,7 +65,7 @@
       const [editId, setEditId] = useState(null);
       const [title, setTitle] = useState('');
       const [percentage, setPercentage] = useState(0);
-      const [color, setColor] = useState('bg-teal-400');
+      const [color, setColor] = useState('bg-[#FF7A00]');
       const [status, setStatus] = useState('en-tiempo');
       const [notes, setNotes] = useState('');
       const [driveUrl, setDriveUrl] = useState('');
@@ -115,8 +85,6 @@
         try {
           const data = await cloudLoad();
 
-          setDebugInfo(data.debug || null);
-
           if (data.projectsSeeded) {
             setProjects(data.projects);
             setSelectedProject(prev => prev ? (data.projects.find(p => p.id === prev.id) || null) : prev);
@@ -132,12 +100,10 @@
             setEvents([]);
           }
 
-          setLastError('');
           setSyncState('ok');
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al leer de Google Sheets:", error);
-          setLastError(error.message || String(error));
           setSyncState('error');
         }
       };
@@ -166,73 +132,6 @@
         setIsAuthenticated(false);
         setIsAdminOpen(false);
         resetForm();
-      };
-
-      const handleForcePushToCloud = async () => {
-        if (projects.length === 0) {
-          alert("No hay proyectos cargados en pantalla para enviar.");
-          return;
-        }
-        if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones que ves en pantalla, y se crearán en Drive las carpetas que falten. ¿Deseas continuar?`)) return;
-
-        busyRef.current = true;
-        setIsLoading(true);
-        try {
-          const data = await cloudRequest({ action: 'syncLocal', projects: projects, events: events });
-          if (Array.isArray(data.projects)) setProjects(data.projects);
-          if (Array.isArray(data.events)) setEvents(data.events);
-          setCloudEmpty(false);
-          setLastError('');
-          setSyncState('ok');
-          setLastSync(new Date());
-
-          const conCarpeta = (data.projects || []).filter(p => p.driveUrl).length;
-          let msg = `Sincronización completada. ${conCarpeta} de ${(data.projects || []).length} proyectos ya tienen su carpeta en Drive.`;
-          if (data.warnings && data.warnings.length) {
-            msg += `\n\nAvisos:\n- ${data.warnings.join('\n- ')}`;
-          }
-          alert(msg);
-        } catch (error) {
-          console.error("Error al sincronizar:", error);
-          setLastError(error.message || String(error));
-          setSyncState('error');
-          alert(`No se pudo sincronizar con Google Sheets.\n\n${error.message}`);
-        } finally {
-          busyRef.current = false;
-          setIsLoading(false);
-        }
-      };
-
-      const handleUpdateChange = (index, newText) => {
-        const updated = [...updatesList];
-        updated[index] = { ...updated[index], text: newText };
-        setUpdatesList(updated);
-      };
-
-      const handleDeleteUpdate = (index) => {
-        setUpdatesList(updatesList.filter((_, i) => i !== index));
-      };
-
-      const handleDeleteUpdateFromModal = async (projectId, updateIndex) => {
-        const proj = projects.find(p => p.id === projectId);
-        if (!proj) return;
-
-        const updatedProj = { ...proj, updates: proj.updates.filter((_, i) => i !== updateIndex) };
-
-        busyRef.current = true;
-        try {
-          const data = await cloudRequest({ action: 'saveProject', project: updatedProj });
-          const saved = data.project || updatedProj;
-          setProjects(prev => prev.map(p => p.id === projectId ? saved : p));
-          if (selectedProject?.id === projectId) setSelectedProject(saved);
-          setSyncState('ok');
-          setLastSync(new Date());
-        } catch (error) {
-          console.error("Error al guardar en nube:", error);
-          alert(`No se pudo eliminar la actualización en Google Sheets.\n\n${error.message}`);
-        } finally {
-          busyRef.current = false;
-        }
       };
 
       const handleSaveProject = async (e) => {
@@ -281,13 +180,11 @@
           setSyncState('ok');
           setLastSync(new Date());
           resetForm();
-
-          if (data.warning) alert(`El pendiente se guardó, pero:\n\n${data.warning}`);
+          loadFromCloud(true);
         } catch (error) {
           console.error("Error al guardar en Google Sheets:", error);
-          setLastError(error.message || String(error));
           setSyncState('error');
-          alert(`No se guardó en Google Sheets. Tus datos siguen en el formulario para que puedas reintentar.\n\n${error.message}`);
+          alert(`No se guardó en Google Sheets: ${error.message}`);
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -295,7 +192,7 @@
       };
 
       const handleDeleteProject = async (projectToDelete) => {
-        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}"? Si tiene su propia carpeta dentro de la carpeta principal, también se enviará a la papelera de Drive.`)) return;
+        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta de Drive asociada?`)) return;
 
         busyRef.current = true;
         setIsLoading(true);
@@ -312,7 +209,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al eliminar en nube:", error);
-          alert(`No se pudo eliminar en Google Sheets.\n\n${error.message}`);
+          alert(`No se pudo eliminar: ${error.message}`);
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -335,7 +232,7 @@
         setEditId(null);
         setTitle('');
         setPercentage(0);
-        setColor('bg-teal-400');
+        setColor('bg-[#FF7A00]');
         setStatus('en-tiempo');
         setNotes('');
         setDriveUrl('');
@@ -365,7 +262,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al guardar evento:", error);
-          alert(`No se pudo guardar la reunión en Google Sheets.\n\n${error.message}`);
+          alert(`No se pudo guardar la reunión: ${error.message}`);
         } finally {
           busyRef.current = false;
         }
@@ -380,7 +277,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al eliminar evento:", error);
-          alert(`No se pudo eliminar la reunión en Google Sheets.\n\n${error.message}`);
+          alert(`No se pudo eliminar la reunión: ${error.message}`);
         } finally {
           busyRef.current = false;
         }
@@ -419,10 +316,10 @@
 
       const getStatusBadge = (st) => {
         switch(st) {
-          case 'en-tiempo': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-300">🟢 En Tiempo</span>;
-          case 'demorado':  return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">🟡 Demorado</span>;
-          case 'detenido':  return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">🔴 Detenido</span>;
-          case 'completado':return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">🔵 Completado</span>;
+          case 'en-tiempo': return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">🟢 En Tiempo</span>;
+          case 'demorado':  return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">🟡 Demorado</span>;
+          case 'detenido':  return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">🔴 Detenido</span>;
+          case 'completado':return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">🔵 Completado</span>;
           default: return null;
         }
       };
@@ -433,40 +330,35 @@
 
       return (
         <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-          {/* HEADER */}
-          <header className="text-center mb-6 relative">
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-gray-800 uppercase">
-              TURISMO 360 
+          {/* HEADER INSTITUCIONAL INNOVADOR */}
+          <header className="text-center mb-6 relative bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="absolute left-6 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
+              <div className="w-3 h-10 bg-[#FF7A00] rounded-full"></div>
+              <div className="w-3 h-10 bg-[#8B5CF6] rounded-full"></div>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-[#1E293B] uppercase">
+              Línea de Progreso de Proyectos 2026
             </h1>
-            <p className="text-gray-500 tracking-widest text-xs md:text-sm font-semibold mt-1 uppercase">
-              Project Management & Monitoring Platform
-                  Secretaría de Turismo y OCV
+            <p className="text-[#8B5CF6] tracking-widest text-xs md:text-sm font-bold mt-1 uppercase">
+              Secretaría de Turismo y OCV Monterrey
             </p>
             <p className="text-[11px] font-semibold mt-2">
-              {syncState === 'loading' && <span className="text-gray-500">⏳ Descargando base de datos...</span>}
-              {syncState === 'ok' && <span className="text-green-700">☁️ Sincronizado con Google Sheets · {lastSyncText}</span>}
-              {syncState === 'error' && <span className="text-red-600">⚠️ Sin conexión con Google Sheets.</span>}
+              {syncState === 'loading' && <span className="text-slate-400">⏳ Conectando con Google Drive...</span>}
+              {syncState === 'ok' && <span className="text-emerald-700">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
+              {syncState === 'error' && <span className="text-rose-600">⚠️ Sin conexión con Google Sheets.</span>}
             </p>
-            {syncState === 'ok' && debugInfo && (
-              <p className="text-[10px] text-gray-400 mt-1">
-                Hoja: {debugInfo.spreadsheetName} / {debugInfo.projectsSheetName} · Filas con datos: {Math.max(debugInfo.projectsLastRow - 1, 0)}
-              </p>
-            )}
-            {syncState === 'error' && lastError && (
-              <p className="text-[10px] text-red-500 mt-1 max-w-xl mx-auto break-words">{lastError}</p>
-            )}
-            <div className="absolute right-0 top-0 flex gap-2">
+            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-2">
               {isAuthenticated ? (
                 <>
-                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition">
+                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
                     {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
                   </button>
-                  <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow transition">
+                  <button onClick={handleLogout} className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
                     🔒 Salir
                   </button>
                 </>
               ) : (
-                <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-gray-800 hover:bg-gray-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow transition">
+                <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#1E293B] hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition">
                   🔐 Acceso Admin
                 </button>
               )}
@@ -476,43 +368,33 @@
           {/* AVISO: HOJA VACÍA */}
           {cloudEmpty && syncState === 'ok' && (
             <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
-              La hoja de Google Sheets se encuentra vacía (0 filas con datos en la pestaña "{debugInfo ? debugInfo.projectsSheetName : 'Proyectos'}"). Abre el <strong>Panel Admin</strong> e ingresa tus nuevos pendientes para empezar a registrar.
+              La base de datos en Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> para registrar tus nuevos pendientes.
             </div>
           )}
 
           {/* BARRA DE HERRAMIENTAS */}
-          <div className="bg-white p-3 rounded-xl shadow border border-gray-200 mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-500 uppercase">Filtro Estado:</span>
-              <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'todos' ? 'bg-gray-800 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
+              <span className="text-xs font-bold text-slate-500 uppercase">Filtro Estado:</span>
+              <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? 'bg-[#1E293B] text-white border-transparent' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'}`}>
                 Todos ({projects.length})
               </button>
-              <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'en-tiempo' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
+              <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}>
                 🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
               </button>
-              <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'demorado' ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}>
+              <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
                 🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
               </button>
-              <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1 rounded-lg border font-semibold ${statusFilter === 'detenido' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'}`}>
+              <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'}`}>
                 🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
               </button>
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded-lg border transition">
+              <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-200 transition">
                 🔄 Actualizar
               </button>
-
-              <div className="bg-gray-100 p-1 rounded-lg border flex text-xs font-semibold">
-                <button onClick={() => setViewMode('linea')} className={`px-3 py-1 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}>
-                  📊 Vista Línea
-                </button>
-                <button onClick={() => setViewMode('kanban')} className={`px-3 py-1 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow text-gray-800 font-bold' : 'text-gray-500 hover:text-gray-800'}`}>
-                  📋 Vista Kanban
-                </button>
-              </div>
-
-              <button onClick={handleExportPDF} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-2 rounded-lg shadow transition flex items-center gap-1">
+              <button onClick={handleExportPDF} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1">
                 📄 Exportar PDF
               </button>
             </div>
@@ -520,58 +402,45 @@
 
           {/* PANEL ADMIN */}
           {isAdminOpen && (
-            <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-md border border-blue-200 mb-8">
+            <div className="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-md border border-[#8B5CF6]/30 mb-8">
               {!isAuthenticated ? (
                 <div className="max-w-sm mx-auto p-4">
-                  <h2 className="text-center font-bold text-gray-700 mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
-                  {authError && <p className="text-red-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
+                  <h2 className="text-center font-bold text-[#1E293B] mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
+                  {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Usuario</label>
-                      <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border rounded p-2 text-sm" placeholder="Ingresa tu usuario" />
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Usuario</label>
+                      <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Usuario" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Contraseña</label>
-                      <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border rounded p-2 text-sm" placeholder="Ingresa tu contraseña" />
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
+                      <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Contraseña" />
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition">
+                    <button type="submit" className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition shadow-sm">
                       Ingresar
                     </button>
                   </form>
                 </div>
               ) : (
                 <div>
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-bold text-xs text-blue-900 uppercase">Rellenar Excel en Google Drive</h3>
-                      <p className="text-xs text-blue-700">Reemplaza el contenido de la hoja de Google Sheets con lo que ves en pantalla y crea en Drive la carpeta de cada pendiente que aún no tenga una.</p>
-                    </div>
-                    <button
-                      onClick={handleForcePushToCloud}
-                      disabled={isLoading}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0"
-                    >
-                      {isLoading ? '⏳ Enviando...' : '☁️ Enviar Datos al Excel'}
-                    </button>
-                  </div>
-
-                  <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">
-                    {editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}
+                  <h2 className="text-lg font-bold text-[#1E293B] mb-4 border-b pb-2 flex items-center justify-between">
+                    <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
+                    <span className="text-xs text-slate-400 font-normal">Las carpetas se crean automáticamente en Drive</span>
                   </h2>
                   <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Título / Descripción de la Actividad</label>
-                      <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Implementación CRM Odoo" className="w-full border rounded p-2 text-sm" />
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Título / Descripción de la Actividad</label>
+                      <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
-                      <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border rounded p-2 text-sm" />
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
+                      <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Estado (Semáforo Ejecutivo)</label>
-                      <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border rounded p-2 text-sm">
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Estado (Semáforo)</label>
+                      <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm">
                         <option value="en-tiempo">🟢 En Tiempo</option>
                         <option value="demorado">🟡 Demorado</option>
                         <option value="detenido">🔴 Detenido</option>
@@ -580,82 +449,37 @@
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Color de la Barra (Muestra Visual)</label>
-                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border rounded p-2 text-sm font-semibold">
-                        <option value="bg-teal-400">🟢 Turquesa Claro</option>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Color de la Barra (Innovador)</label>
+                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm font-semibold">
+                        <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
+                        <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
                         <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
-                        <option value="bg-sky-400">🔵 Azul Cielo</option>
                         <option value="bg-blue-600">🔵 Azul Rey</option>
-                        <option value="bg-indigo-600">🟣 Índigo / Violeta</option>
-                        <option value="bg-purple-600">🟣 Púrpura</option>
-                        <option value="bg-fuchsia-500">🟣 Fucsia</option>
-                        <option value="bg-rose-500">🔴 Rosa Coral</option>
-                        <option value="bg-rose-800">🔴 Granate / Vino</option>
-                        <option value="bg-red-600">🔴 Rojo Vivo</option>
-                        <option value="bg-orange-500">🟠 Naranja</option>
-                        <option value="bg-amber-500">🟡 Ámbar / Amarillo</option>
-                        <option value="bg-lime-500">🟢 Verde Lima</option>
-                        <option value="bg-emerald-500">🟢 Verde Esmeralda</option>
-                        <option value="bg-slate-700">⚫ Gris Oscuro / Slate</option>
+                        <option value="bg-rose-600">🔴 Coral Vivo</option>
+                        <option value="bg-amber-500">🟡 Ámbar</option>
                       </select>
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
-                        Enlace de Carpeta en Google Drive (se crea/actualiza automáticamente al guardar)
-                      </label>
-                      <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border rounded p-2 text-sm" />
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Anotaciones Importantes</label>
+                      <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border border-slate-300 rounded p-2 text-sm"></textarea>
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Anotaciones Importantes</label>
-                      <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border rounded p-2 text-sm"></textarea>
-                    </div>
-
-                    <div className="md:col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-2">
-                        Historial de Actualizaciones (Editar / Eliminar)
-                      </label>
-                      {updatesList.length === 0 ? (
-                        <p className="text-xs text-gray-400 italic mb-2">No hay actualizaciones registradas en esta actividad.</p>
-                      ) : (
-                        <div className="space-y-2 mb-3">
-                          {updatesList.map((up, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-500 w-24 flex-shrink-0">{up.date}:</span>
-                              <input
-                                type="text"
-                                value={up.text}
-                                onChange={e => handleUpdateChange(idx, e.target.value)}
-                                className="w-full border rounded p-1 text-xs"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteUpdate(idx)}
-                                className="text-red-500 hover:text-red-700 font-bold text-sm px-2"
-                                title="Eliminar actualización"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
+                    <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">➕ Agregar Actualización al Historial</label>
                       <input
                         type="text"
                         value={newUpdateText}
                         onChange={e => setNewUpdateText(e.target.value)}
-                        placeholder="Ej. Se concluyó la configuración inicial."
-                        className="w-full border rounded p-2 text-sm"
+                        placeholder="Ej. Se validaron los lineamientos con dirección."
+                        className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
                       />
                     </div>
 
                     <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
                       <div>
                         {editId && (
-                          <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded font-bold transition">
+                          <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition">
                             🗑️ Eliminar Pendiente y Carpeta
                           </button>
                         )}
@@ -663,11 +487,11 @@
 
                       <div className="flex gap-2">
                         {editId && (
-                          <button type="button" onClick={resetForm} className="bg-gray-400 text-white text-xs px-4 py-2 rounded hover:bg-gray-500">
+                          <button type="button" onClick={resetForm} className="bg-slate-300 text-slate-700 text-xs px-4 py-2 rounded-lg hover:bg-slate-400 font-bold">
                             Cancelar
                           </button>
                         )}
-                        <button type="submit" disabled={isLoading} className="bg-green-600 text-white text-xs px-6 py-2 rounded hover:bg-green-700 font-bold flex items-center gap-2 disabled:opacity-60">
+                        <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white text-xs px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-60">
                           {isLoading && <span className="animate-spin">⏳</span>}
                           {isLoading ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
                         </button>
@@ -678,14 +502,14 @@
                   {/* LISTA DE PENDIENTES CREADOS */}
                   {projects.length > 0 && (
                     <div className="mt-6 border-t pt-4">
-                      <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
+                      <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
                       <div className="flex flex-wrap gap-2">
                         {projects.map(p => (
-                          <div key={p.id} className="inline-flex items-center border rounded bg-gray-50 overflow-hidden shadow-sm">
-                            <button onClick={() => handleEditClick(p)} className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 font-semibold text-gray-700 border-r">
+                          <div key={p.id} className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-sm">
+                            <button onClick={() => handleEditClick(p)} className="text-xs bg-white hover:bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 border-r border-slate-200">
                               ✏️ #{p.id} - {p.title.substring(0, 20)}...
                             </button>
-                            <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 font-bold" title="Eliminar pendiente y su carpeta">
+                            <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 font-bold" title="Eliminar pendiente y su carpeta">
                               🗑️
                             </button>
                           </div>
@@ -704,18 +528,18 @@
 
               {/* CALENDARIO & REUNIONES */}
               <div className="lg:col-span-4 space-y-6">
-                <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">
+                    <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">
                       📅 {monthNames[month]} {year}
                     </h3>
                     <div className="flex gap-1">
-                      <button onClick={prevMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">◄</button>
-                      <button onClick={nextMonth} className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-xs rounded font-bold">►</button>
+                      <button onClick={prevMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">◄</button>
+                      <button onClick={nextMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">►</button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-7 text-center text-[10px] font-bold text-gray-400 mb-2">
+                  <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
                     <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
                   </div>
 
@@ -725,7 +549,7 @@
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                       const hasEvent = events.some(e => e.date === dateStr);
                       return (
-                        <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-lg relative font-semibold transition ${hasEvent ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'hover:bg-gray-100 text-gray-700'}`}>
+                        <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] font-bold border border-[#8B5CF6]/30' : 'hover:bg-slate-100 text-slate-700'}`}>
                           {d}
                         </div>
                       );
@@ -733,35 +557,35 @@
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-xl shadow border border-gray-100">
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-extrabold text-gray-800 text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
+                    <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
                     {isAuthenticated && (
-                      <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-blue-600 font-bold">
+                      <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-[#8B5CF6] font-bold hover:underline">
                         {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
                       </button>
                     )}
                   </div>
 
                   {isAddingEvent && isAuthenticated && (
-                    <form onSubmit={handleSaveEvent} className="bg-blue-50 p-3 rounded-lg mb-4 text-xs space-y-2 border">
-                      <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-1.5 border rounded" />
-                      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-1.5 border rounded" />
-                      <button type="submit" className="w-full bg-blue-600 text-white font-bold py-1.5 rounded">Guardar Evento</button>
+                    <form onSubmit={handleSaveEvent} className="bg-slate-50 p-3 rounded-xl mb-4 text-xs space-y-2 border border-slate-200">
+                      <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
+                      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
+                      <button type="submit" className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded-lg shadow-sm">Guardar Evento</button>
                     </form>
                   )}
 
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {sortedEvents.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">No hay reuniones agendadas.</p>
+                      <p className="text-xs text-slate-400 italic">No hay reuniones agendadas.</p>
                     ) : (
                       sortedEvents.map(ev => (
-                        <div key={ev.id} className="p-3 rounded-lg border text-xs bg-blue-50 flex justify-between">
+                        <div key={ev.id} className="p-3 rounded-xl border border-slate-200 text-xs bg-slate-50 flex justify-between items-center">
                           <div>
-                            <div className="font-bold">{ev.title}</div>
-                            <div className="text-[11px] opacity-80">{ev.date} — {ev.time}</div>
+                            <div className="font-bold text-[#1E293B]">{ev.title}</div>
+                            <div className="text-[11px] text-slate-500">{ev.date} — {ev.time}</div>
                           </div>
-                          {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-red-500 font-bold">✕</button>}
+                          {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>}
                         </div>
                       ))
                     )}
@@ -770,38 +594,38 @@
               </div>
 
               {/* LISTA DE PENDIENTES */}
-              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-xl shadow border border-gray-100">
+              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
                 {viewMode === 'linea' && (
                   <div>
-                    <div className="grid grid-cols-5 text-center text-xs font-bold text-gray-400 border-b pb-2 mb-6 ml-14 md:ml-16">
+                    <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b pb-2 mb-6 ml-14 md:ml-16">
                       <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
                     </div>
 
                     <div className="space-y-6">
                       {syncState === 'loading' && projects.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 text-xs font-bold">
+                        <div className="text-center py-12 text-slate-400 text-xs font-bold">
                           Descargando pendientes de la nube... ⏳
                         </div>
                       ) : filteredProjects.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 text-xs">
-                          <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados en la base de datos.</p>
+                        <div className="text-center py-12 text-slate-400 text-xs">
+                          <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                         </div>
                       ) : (
                         filteredProjects.map((project) => (
                           <div key={project.id} className="flex items-start group relative">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 rounded-full flex items-center justify-center font-bold text-xs text-gray-700 shadow mr-3 mt-1">
+                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center font-extrabold text-xs text-[#1E293B] shadow-sm mr-3 mt-1">
                               {project.id}
                             </div>
 
                             <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
                               <div className="flex justify-between items-center mb-1 pr-2">
-                                <span className="font-bold text-xs text-gray-800">{project.title}</span>
-                                <span className="font-extrabold text-xs text-blue-600">{project.percentage}%</span>
+                                <span className="font-bold text-xs text-[#1E293B] hover:text-[#FF7A00] transition">{project.title}</span>
+                                <span className="font-extrabold text-xs text-[#8B5CF6]">{project.percentage}%</span>
                               </div>
 
-                              <div className="bg-gray-200 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full">
-                                <div className={`h-full ${project.color} rounded-full transition-all duration-500`} style={{ width: `${project.percentage}%` }}></div>
+                              <div className="bg-slate-100 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border border-slate-200">
+                                <div className={`h-full ${project.color} rounded-full transition-all duration-500 shadow-sm`} style={{ width: `${project.percentage}%` }}></div>
                               </div>
                             </div>
 
@@ -812,62 +636,6 @@
                     </div>
                   </div>
                 )}
-
-                {viewMode === 'kanban' && (
-                  <div>
-                    {syncState === 'loading' && projects.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400 text-xs font-bold">
-                        Descargando pendientes de la nube... ⏳
-                      </div>
-                    ) : filteredProjects.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400 text-xs">
-                        <p className="font-semibold text-gray-500 mb-1">No hay pendientes registrados en la base de datos.</p>
-                        <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                        {KANBAN_COLUMNS.map((col) => {
-                          const colProjects = filteredProjects.filter(p => p.status === col.key);
-                          return (
-                            <div key={col.key} className={`rounded-xl border ${col.border} ${col.bg} p-3 flex flex-col min-h-[200px]`}>
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-xs font-extrabold uppercase tracking-wide text-gray-700">
-                                  {col.emoji} {col.label}
-                                </h4>
-                                <span className="text-[10px] font-bold bg-white/70 border rounded-full px-2 py-0.5 text-gray-600">
-                                  {colProjects.length}
-                                </span>
-                              </div>
-
-                              <div className="space-y-3 flex-grow">
-                                {colProjects.length === 0 ? (
-                                  <p className="text-[11px] text-gray-400 italic">Sin pendientes en este estado.</p>
-                                ) : (
-                                  colProjects.map((project) => (
-                                    <div
-                                      key={project.id}
-                                      onClick={() => setSelectedProject(project)}
-                                      className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 cursor-pointer hover:shadow-md transition"
-                                    >
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <span className="text-[11px] font-bold text-gray-800 leading-snug">{project.title}</span>
-                                        <span className="text-[10px] font-bold text-gray-400 flex-shrink-0">#{project.id}</span>
-                                      </div>
-                                      <div className="bg-gray-200 h-2 rounded-full overflow-hidden mb-1">
-                                        <div className={`h-full ${project.color} rounded-full`} style={{ width: `${project.percentage}%` }}></div>
-                                      </div>
-                                      <div className="text-right text-[10px] font-bold text-blue-600">{project.percentage}%</div>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
             </div>
@@ -875,62 +643,53 @@
 
           {/* MODAL DETALLES */}
           {selectedProject && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-gray-400 font-bold text-xl">✕</button>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
+                <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold text-gray-800">{selectedProject.title}</h2>
+                  <h2 className="text-xl font-bold text-[#1E293B]">{selectedProject.title}</h2>
                   {getStatusBadge(selectedProject.status)}
                 </div>
-                <div className="mb-4 text-sm text-gray-500 font-semibold">Progreso: <span className="font-bold text-blue-600">{selectedProject.percentage}%</span></div>
+                <div className="mb-4 text-sm text-slate-500 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
 
                 {selectedProject.notes && (
-                  <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                    <h4 className="text-xs font-bold text-yellow-800 uppercase">Anotaciones Importantes:</h4>
-                    <p className="text-sm text-yellow-900">{selectedProject.notes}</p>
+                  <div className="mb-4 bg-amber-50 border-l-4 border-[#FF7A00] p-3 rounded-r-xl">
+                    <h4 className="text-xs font-bold text-amber-900 uppercase">Anotaciones Importantes:</h4>
+                    <p className="text-sm text-amber-950 mt-0.5">{selectedProject.notes}</p>
                   </div>
                 )}
 
                 <div className="mb-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">Historial de Actualizaciones:</h4>
+                  <h4 className="text-sm font-bold text-[#1E293B] mb-2">Historial de Actualizaciones:</h4>
                   {selectedProject.updates && selectedProject.updates.length > 0 ? (
                     <ul className="space-y-2">
                       {selectedProject.updates.map((up, idx) => (
-                        <li key={idx} className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex items-center justify-between gap-2">
+                        <li key={idx} className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
                           <div>
-                            <span className="font-semibold text-gray-500 mr-2">{up.date}:</span>
-                            <span className="text-gray-700">{up.text}</span>
+                            <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
+                            <span className="text-slate-700">{up.text}</span>
                           </div>
-                          {isAuthenticated && (
-                            <button
-                              onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)}
-                              className="text-red-400 hover:text-red-600 font-bold text-xs flex-shrink-0"
-                              title="Eliminar actualización"
-                            >
-                              🗑️
-                            </button>
-                          )}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No hay registros de actualización previos.</p>
+                    <p className="text-xs text-slate-400 italic">No hay registros de actualización previos.</p>
                   )}
                 </div>
 
                 <div className="mb-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-2">Carpeta / Evidencia (Google Drive):</h4>
+                  <h4 className="text-sm font-bold text-[#1E293B] mb-2">Carpeta / Evidencia (Google Drive):</h4>
                   {selectedProject.driveUrl ? (
-                    <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-lg shadow">
+                    <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
                       📁 Abrir Carpeta en Google Drive ➔
                     </a>
                   ) : (
-                    <p className="text-xs text-gray-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
+                    <p className="text-xs text-slate-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
                   )}
                 </div>
 
-                <div className="text-right border-t pt-4">
-                  <button onClick={() => setSelectedProject(null)} className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg">Cerrar</button>
+                <div className="text-right border-t border-slate-100 pt-4">
+                  <button onClick={() => setSelectedProject(null)} className="bg-[#1E293B] hover:bg-slate-900 text-white text-sm px-5 py-2 rounded-xl transition">Cerrar</button>
                 </div>
               </div>
             </div>
