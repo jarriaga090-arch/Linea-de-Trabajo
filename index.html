@@ -9,8 +9,19 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    /* Fondo Geométrico Institucional Sutil inspirado en las montañas */
+    body {
+      background-color: #F8FAFC;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(255, 122, 0, 0.05) 0%, transparent 40%),
+        linear-gradient(135deg, rgba(30, 41, 59, 0.03) 0%, transparent 100%);
+      background-attachment: fixed;
+    }
+  </style>
 </head>
-<body class="bg-[#F8FAFC] text-[#1E293B] min-h-screen font-sans">
+<body class="text-[#1E293B] min-h-screen font-sans">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -22,7 +33,13 @@
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
 
     const REFRESH_MS = 60000;
-    const DEFAULT_PROJECTS = [];
+
+    const KANBAN_COLUMNS = [
+      { key: 'en-tiempo', label: 'En Tiempo', emoji: '🟢', bg: 'bg-emerald-50/70', border: 'border-emerald-200' },
+      { key: 'demorado', label: 'Demorado', emoji: '🟡', bg: 'bg-amber-50/70', border: 'border-amber-200' },
+      { key: 'detenido', label: 'Detenido', emoji: '🔴', bg: 'bg-rose-50/70', border: 'border-rose-200' },
+      { key: 'completado', label: 'Completado', emoji: '🔵', bg: 'bg-blue-50/70', border: 'border-blue-200' }
+    ];
 
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
@@ -30,19 +47,32 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        throw new Error('La respuesta no fue JSON: ' + raw.slice(0, 200));
+      }
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
 
     async function cloudLoad() {
       const res = await fetch(`${APPS_SCRIPT_URL}?t=${Date.now()}`);
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch (e) {
+        throw new Error('La respuesta no fue JSON: ' + raw.slice(0, 200));
+      }
       if (data.status !== 'success') throw new Error(data.message || 'Error en el servidor');
       return data;
     }
 
     function App() {
+      const [showSplash, setShowSplash] = useState(true);
       const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState([]);
 
@@ -52,9 +82,11 @@
       const [statusFilter, setStatusFilter] = useState('todos');
       const [isLoading, setIsLoading] = useState(false);
 
-      const [syncState, setSyncState] = useState('loading'); 
+      const [syncState, setSyncState] = useState('loading');
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
+      const [lastError, setLastError] = useState('');
+      const [debugInfo, setDebugInfo] = useState(null);
       const busyRef = useRef(false);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -79,11 +111,20 @@
 
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
+      useEffect(() => {
+        // Desvanece el Splash Screen después de 1.6 segundos
+        const splashTimer = setTimeout(() => {
+          setShowSplash(false);
+        }, 1600);
+        return () => clearTimeout(splashTimer);
+      }, []);
+
       const loadFromCloud = async (silent = false) => {
         if (busyRef.current) return;
         if (!silent) setSyncState('loading');
         try {
           const data = await cloudLoad();
+          setDebugInfo(data.debug || null);
 
           if (data.projectsSeeded) {
             setProjects(data.projects);
@@ -100,10 +141,12 @@
             setEvents([]);
           }
 
+          setLastError('');
           setSyncState('ok');
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al leer de Google Sheets:", error);
+          setLastError(error.message || String(error));
           setSyncState('error');
         }
       };
@@ -132,6 +175,66 @@
         setIsAuthenticated(false);
         setIsAdminOpen(false);
         resetForm();
+      };
+
+      const handleForcePushToCloud = async () => {
+        if (projects.length === 0) {
+          alert("No hay proyectos cargados en pantalla para enviar.");
+          return;
+        }
+        if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones que ves en pantalla. ¿Deseas continuar?`)) return;
+
+        busyRef.current = true;
+        setIsLoading(true);
+        try {
+          const data = await cloudRequest({ action: 'syncLocal', projects: projects, events: events });
+          if (Array.isArray(data.projects)) setProjects(data.projects);
+          if (Array.isArray(data.events)) setEvents(data.events);
+          setCloudEmpty(false);
+          setLastError('');
+          setSyncState('ok');
+          setLastSync(new Date());
+          alert("Sincronización completada correctamente.");
+        } catch (error) {
+          console.error("Error al sincronizar:", error);
+          setLastError(error.message || String(error));
+          setSyncState('error');
+          alert(`No se pudo sincronizar:\n\n${error.message}`);
+        } finally {
+          busyRef.current = false;
+          setIsLoading(false);
+        }
+      };
+
+      const handleUpdateChange = (index, newText) => {
+        const updated = [...updatesList];
+        updated[index] = { ...updated[index], text: newText };
+        setUpdatesList(updated);
+      };
+
+      const handleDeleteUpdate = (index) => {
+        setUpdatesList(updatesList.filter((_, i) => i !== index));
+      };
+
+      const handleDeleteUpdateFromModal = async (projectId, updateIndex) => {
+        const proj = projects.find(p => p.id === projectId);
+        if (!proj) return;
+        const updatedProj = { ...proj, updates: proj.updates.filter((_, i) => i !== updateIndex) };
+
+        busyRef.current = true;
+        try {
+          const data = await cloudRequest({ action: 'saveProject', project: updatedProj });
+          const saved = data.project || updatedProj;
+          setProjects(prev => prev.map(p => p.id === projectId ? saved : p));
+          if (selectedProject?.id === projectId) setSelectedProject(saved);
+          setSyncState('ok');
+          setLastSync(new Date());
+        } catch (error) {
+          console.error("Error al guardar en nube:", error);
+          alert(`No se pudo eliminar la actualización:\n\n${error.message}`);
+        } finally {
+          busyRef.current = false;
+        }
       };
 
       const handleSaveProject = async (e) => {
@@ -180,11 +283,13 @@
           setSyncState('ok');
           setLastSync(new Date());
           resetForm();
-          loadFromCloud(true);
+
+          if (data.warning) alert(`El pendiente se guardó, pero:\n\n${data.warning}`);
         } catch (error) {
           console.error("Error al guardar en Google Sheets:", error);
+          setLastError(error.message || String(error));
           setSyncState('error');
-          alert(`No se guardó en Google Sheets: ${error.message}`);
+          alert(`No se guardó en Google Sheets:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -192,7 +297,7 @@
       };
 
       const handleDeleteProject = async (projectToDelete) => {
-        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}" y su carpeta de Drive asociada?`)) return;
+        if (!window.confirm(`¿Deseas eliminar "${projectToDelete.title}"?`)) return;
 
         busyRef.current = true;
         setIsLoading(true);
@@ -209,7 +314,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al eliminar en nube:", error);
-          alert(`No se pudo eliminar: ${error.message}`);
+          alert(`No se pudo eliminar:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -262,7 +367,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al guardar evento:", error);
-          alert(`No se pudo guardar la reunión: ${error.message}`);
+          alert(`No se pudo guardar la reunión:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
         }
@@ -277,7 +382,7 @@
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al eliminar evento:", error);
-          alert(`No se pudo eliminar la reunión: ${error.message}`);
+          alert(`No se pudo eliminar la reunión:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
         }
@@ -329,279 +434,371 @@
         : '';
 
       return (
-        <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-          {/* HEADER INSTITUCIONAL INNOVADOR */}
-          <header className="text-center mb-6 relative bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="absolute left-6 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
-              <div className="w-3 h-10 bg-[#FF7A00] rounded-full"></div>
-              <div className="w-3 h-10 bg-[#8B5CF6] rounded-full"></div>
+        <div className="relative min-h-screen">
+          {/* SPLASH SCREEN */}
+          <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-700 ${showSplash ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-4 h-12 bg-[#FF7A00] rounded-full animate-pulse"></div>
+              <div className="w-4 h-12 bg-[#8B5CF6] rounded-full animate-pulse delay-150"></div>
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-[#1E293B] uppercase">
-              Línea de Progreso de Proyectos 2026
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-wider uppercase text-center px-4">
+              Secretaría de Turismo y OCV
             </h1>
-            <p className="text-[#8B5CF6] tracking-widest text-xs md:text-sm font-bold mt-1 uppercase">
-              Secretaría de Turismo y OCV Monterrey
+            <p className="text-[#8B5CF6] tracking-widest text-xs font-semibold mt-2 uppercase">
+              Línea de Progreso 2026
             </p>
-            <p className="text-[11px] font-semibold mt-2">
-              {syncState === 'loading' && <span className="text-slate-400">⏳ Conectando con Google Drive...</span>}
-              {syncState === 'ok' && <span className="text-emerald-700">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
-              {syncState === 'error' && <span className="text-rose-600">⚠️ Sin conexión con Google Sheets.</span>}
-            </p>
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-2">
-              {isAuthenticated ? (
-                <>
-                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
-                    {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
-                  </button>
-                  <button onClick={handleLogout} className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
-                    🔒 Salir
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#1E293B] hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition">
-                  🔐 Acceso Admin
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* AVISO: HOJA VACÍA */}
-          {cloudEmpty && syncState === 'ok' && (
-            <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
-              La base de datos en Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> para registrar tus nuevos pendientes.
-            </div>
-          )}
-
-          {/* BARRA DE HERRAMIENTAS */}
-          <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-500 uppercase">Filtro Estado:</span>
-              <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? 'bg-[#1E293B] text-white border-transparent' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'}`}>
-                Todos ({projects.length})
-              </button>
-              <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}>
-                🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
-              </button>
-              <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
-                🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
-              </button>
-              <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'}`}>
-                🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-200 transition">
-                🔄 Actualizar
-              </button>
-              <button onClick={handleExportPDF} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1">
-                📄 Exportar PDF
-              </button>
+            <div className="mt-8 flex items-center gap-2 text-xs text-slate-400">
+              <span className="inline-block w-4 h-4 border-2 border-[#FF7A00] border-t-transparent rounded-full animate-spin"></span>
+              Cargando entorno institucional...
             </div>
           </div>
 
-          {/* PANEL ADMIN */}
-          {isAdminOpen && (
-            <div className="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-md border border-[#8B5CF6]/30 mb-8">
-              {!isAuthenticated ? (
-                <div className="max-w-sm mx-auto p-4">
-                  <h2 className="text-center font-bold text-[#1E293B] mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
-                  {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Usuario</label>
-                      <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Usuario" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
-                      <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Contraseña" />
-                    </div>
-                    <button type="submit" className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition shadow-sm">
-                      Ingresar
+          {/* CONTENIDO PRINCIPAL */}
+          <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
+            {/* HEADER INNOVADOR E INSTITUCIONAL */}
+            <header className="text-center mb-6 relative bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="absolute left-6 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-2">
+                <div className="w-3 h-10 bg-[#FF7A00] rounded-full"></div>
+                <div className="w-3 h-10 bg-[#8B5CF6] rounded-full"></div>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-extrabold tracking-wider text-[#1E293B] uppercase">
+                Línea de Progreso de Proyectos 2026
+              </h1>
+              <p className="text-[#8B5CF6] tracking-widest text-xs md:text-sm font-bold mt-1 uppercase">
+                Secretaría de Turismo y OCV Monterrey
+              </p>
+              <p className="text-[11px] font-semibold mt-2">
+                {syncState === 'loading' && <span className="text-slate-400">⏳ Conectando con Google Drive...</span>}
+                {syncState === 'ok' && <span className="text-emerald-700">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
+                {syncState === 'error' && <span className="text-rose-600">⚠️ Sin conexión con Google Sheets.</span>}
+              </p>
+
+              <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-2">
+                {isAuthenticated ? (
+                  <>
+                    <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
+                      {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
                     </button>
-                  </form>
-                </div>
-              ) : (
-                <div>
-                  <h2 className="text-lg font-bold text-[#1E293B] mb-4 border-b pb-2 flex items-center justify-between">
-                    <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
-                    <span className="text-xs text-slate-400 font-normal">Las carpetas se crean automáticamente en Drive</span>
-                  </h2>
-                  <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Título / Descripción de la Actividad</label>
-                      <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
-                    </div>
+                    <button onClick={handleLogout} className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
+                      🔒 Salir
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#1E293B] hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition">
+                    🔐 Acceso Admin
+                  </button>
+                )}
+              </div>
+            </header>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
-                      <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
-                    </div>
+            {/* AVISO HOJA VACÍA */}
+            {cloudEmpty && syncState === 'ok' && (
+              <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
+                La base de datos en Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> para registrar tus nuevos pendientes.
+              </div>
+            )}
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Estado (Semáforo)</label>
-                      <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm">
-                        <option value="en-tiempo">🟢 En Tiempo</option>
-                        <option value="demorado">🟡 Demorado</option>
-                        <option value="detenido">🔴 Detenido</option>
-                        <option value="completado">🔵 Completado</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Color de la Barra (Innovador)</label>
-                      <select value={color} onChange={e => setColor(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm font-semibold">
-                        <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
-                        <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
-                        <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
-                        <option value="bg-blue-600">🔵 Azul Rey</option>
-                        <option value="bg-rose-600">🔴 Coral Vivo</option>
-                        <option value="bg-amber-500">🟡 Ámbar</option>
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Anotaciones Importantes</label>
-                      <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border border-slate-300 rounded p-2 text-sm"></textarea>
-                    </div>
-
-                    <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1">➕ Agregar Actualización al Historial</label>
-                      <input
-                        type="text"
-                        value={newUpdateText}
-                        onChange={e => setNewUpdateText(e.target.value)}
-                        placeholder="Ej. Se validaron los lineamientos con dirección."
-                        className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
-                      />
-                    </div>
-
-                    <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
-                      <div>
-                        {editId && (
-                          <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition">
-                            🗑️ Eliminar Pendiente y Carpeta
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        {editId && (
-                          <button type="button" onClick={resetForm} className="bg-slate-300 text-slate-700 text-xs px-4 py-2 rounded-lg hover:bg-slate-400 font-bold">
-                            Cancelar
-                          </button>
-                        )}
-                        <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white text-xs px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-60">
-                          {isLoading && <span className="animate-spin">⏳</span>}
-                          {isLoading ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-
-                  {/* LISTA DE PENDIENTES CREADOS */}
-                  {projects.length > 0 && (
-                    <div className="mt-6 border-t pt-4">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {projects.map(p => (
-                          <div key={p.id} className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-sm">
-                            <button onClick={() => handleEditClick(p)} className="text-xs bg-white hover:bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 border-r border-slate-200">
-                              ✏️ #{p.id} - {p.title.substring(0, 20)}...
-                            </button>
-                            <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 font-bold" title="Eliminar pendiente y su carpeta">
-                              🗑️
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* VISTA PRINCIPAL */}
-          <div id="exportable-area">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-              {/* CALENDARIO & REUNIONES */}
-              <div className="lg:col-span-4 space-y-6">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">
-                      📅 {monthNames[month]} {year}
-                    </h3>
-                    <div className="flex gap-1">
-                      <button onClick={prevMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">◄</button>
-                      <button onClick={nextMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">►</button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
-                    <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
-                  </div>
-
-                  <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                    {calendarDays.map((d, index) => {
-                      if (d === null) return <div key={index} className="h-8"></div>;
-                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                      const hasEvent = events.some(e => e.date === dateStr);
-                      return (
-                        <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] font-bold border border-[#8B5CF6]/30' : 'hover:bg-slate-100 text-slate-700'}`}>
-                          {d}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
-                    {isAuthenticated && (
-                      <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-[#8B5CF6] font-bold hover:underline">
-                        {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
-                      </button>
-                    )}
-                  </div>
-
-                  {isAddingEvent && isAuthenticated && (
-                    <form onSubmit={handleSaveEvent} className="bg-slate-50 p-3 rounded-xl mb-4 text-xs space-y-2 border border-slate-200">
-                      <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
-                      <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
-                      <button type="submit" className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded-lg shadow-sm">Guardar Evento</button>
-                    </form>
-                  )}
-
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {sortedEvents.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No hay reuniones agendadas.</p>
-                    ) : (
-                      sortedEvents.map(ev => (
-                        <div key={ev.id} className="p-3 rounded-xl border border-slate-200 text-xs bg-slate-50 flex justify-between items-center">
-                          <div>
-                            <div className="font-bold text-[#1E293B]">{ev.title}</div>
-                            <div className="text-[11px] text-slate-500">{ev.date} — {ev.time}</div>
-                          </div>
-                          {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+            {/* BARRA DE HERRAMIENTAS */}
+            <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-500 uppercase">Filtro Estado:</span>
+                <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? 'bg-[#1E293B] text-white border-transparent' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'}`}>
+                  Todos ({projects.length})
+                </button>
+                <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}>
+                  🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
+                </button>
+                <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
+                  🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
+                </button>
+                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'}`}>
+                  🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
+                </button>
               </div>
 
-              {/* LISTA DE PENDIENTES */}
-              <div className="lg:col-span-8 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
-                {viewMode === 'linea' && (
+              <div className="flex items-center gap-2">
+                <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-200 transition">
+                  🔄 Actualizar
+                </button>
+
+                <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex text-xs font-semibold">
+                  <button onClick={() => setViewMode('linea')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
+                    📊 Vista Línea
+                  </button>
+                  <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
+                    📋 Vista Kanban
+                  </button>
+                </div>
+
+                <button onClick={handleExportPDF} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1">
+                  📄 Exportar PDF
+                </button>
+              </div>
+            </div>
+
+            {/* PANEL ADMIN */}
+            {isAdminOpen && (
+              <div className="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-md border border-[#8B5CF6]/30 mb-8">
+                {!isAuthenticated ? (
+                  <div className="max-w-sm mx-auto p-4">
+                    <h2 className="text-center font-bold text-[#1E293B] mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
+                    {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Usuario</label>
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Usuario" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
+                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Contraseña" />
+                      </div>
+                      <button type="submit" className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition shadow-sm">
+                        Ingresar
+                      </button>
+                    </form>
+                  </div>
+                ) : (
                   <div>
-                    <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b pb-2 mb-6 ml-14 md:ml-16">
-                      <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
+                    <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold text-xs text-purple-900 uppercase">Sincronización Manual con Excel</h3>
+                        <p className="text-xs text-purple-700">Actualiza y fuerza el volcado de los datos actuales hacia la nube.</p>
+                      </div>
+                      <button onClick={handleForcePushToCloud} disabled={isLoading} className="bg-[#8B5CF6] hover:bg-[#7c3aed] disabled:opacity-60 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0">
+                        {isLoading ? '⏳ Enviando...' : '☁️ Enviar Datos al Excel'}
+                      </button>
                     </div>
 
-                    <div className="space-y-6">
+                    <h2 className="text-lg font-bold text-[#1E293B] mb-4 border-b pb-2 flex items-center justify-between">
+                      <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
+                      <span className="text-xs text-slate-400 font-normal">Drive gestiona las carpetas automáticamente</span>
+                    </h2>
+
+                    <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Título / Descripción de la Actividad</label>
+                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
+                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Estado (Semáforo)</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm">
+                          <option value="en-tiempo">🟢 En Tiempo</option>
+                          <option value="demorado">🟡 Demorado</option>
+                          <option value="detenido">🔴 Detenido</option>
+                          <option value="completado">🔵 Completado</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Color de la Barra (Innovador)</label>
+                        <select value={color} onChange={e => setColor(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm font-semibold">
+                          <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
+                          <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
+                          <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
+                          <option value="bg-blue-600">🔵 Azul Rey</option>
+                          <option value="bg-rose-600">🔴 Coral Vivo</option>
+                          <option value="bg-amber-500">🟡 Ámbar</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Enlace de Carpeta en Google Drive</label>
+                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border border-slate-300 rounded p-2 text-sm" />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Anotaciones Importantes</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border border-slate-300 rounded p-2 text-sm"></textarea>
+                      </div>
+
+                      <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Historial de Actualizaciones</label>
+                        {updatesList.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic mb-2">No hay actualizaciones registradas.</p>
+                        ) : (
+                          <div className="space-y-2 mb-3">
+                            {updatesList.map((up, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-500 w-24 flex-shrink-0">{up.date}:</span>
+                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className="w-full border rounded p-1 text-xs bg-white" />
+                                <button type="button" onClick={() => handleDeleteUpdate(idx)} className="text-rose-500 font-bold text-sm px-2">🗑️</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
+                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="Ej. Se validaron lineamientos." className="w-full border rounded p-2 text-sm bg-white" />
+                      </div>
+
+                      <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
+                        <div>
+                          {editId && (
+                            <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition">
+                              🗑️ Eliminar Pendiente y Carpeta
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          {editId && (
+                            <button type="button" onClick={resetForm} className="bg-slate-300 text-slate-700 text-xs px-4 py-2 rounded-lg hover:bg-slate-400 font-bold">
+                              Cancelar
+                            </button>
+                          )}
+                          <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white text-xs px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-60">
+                            {isLoading && <span className="animate-spin">⏳</span>}
+                            {isLoading ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+
+                    {/* LISTA DE PENDIENTES CREADOS */}
+                    {projects.length > 0 && (
+                      <div className="mt-6 border-t pt-4">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {projects.map(p => (
+                            <div key={p.id} className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-sm">
+                              <button onClick={() => handleEditClick(p)} className="text-xs bg-white hover:bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 border-r border-slate-200">
+                                ✏️ #{p.id} - {p.title.substring(0, 20)}...
+                              </button>
+                              <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 font-bold">
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VISTA PRINCIPAL */}
+            <div id="exportable-area">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                {/* CALENDARIO & REUNIONES */}
+                <div className="lg:col-span-4 space-y-6">
+                  <div className="bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">
+                        📅 {monthNames[month]} {year}
+                      </h3>
+                      <div className="flex gap-1">
+                        <button onClick={prevMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">◄</button>
+                        <button onClick={nextMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">►</button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
+                      <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                      {calendarDays.map((d, index) => {
+                        if (d === null) return <div key={index} className="h-8"></div>;
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        const hasEvent = events.some(e => e.date === dateStr);
+                        return (
+                          <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] font-bold border border-[#8B5CF6]/30' : 'hover:bg-slate-100 text-slate-700'}`}>
+                            {d}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
+                      {isAuthenticated && (
+                        <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-[#8B5CF6] font-bold hover:underline">
+                          {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isAddingEvent && isAuthenticated && (
+                      <form onSubmit={handleSaveEvent} className="bg-slate-50 p-3 rounded-xl mb-4 text-xs space-y-2 border border-slate-200">
+                        <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
+                        <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
+                        <button type="submit" className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded-lg shadow-sm">Guardar Evento</button>
+                      </form>
+                    )}
+
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                      {sortedEvents.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">No hay reuniones agendadas.</p>
+                      ) : (
+                        sortedEvents.map(ev => (
+                          <div key={ev.id} className="p-3 rounded-xl border border-slate-200 text-xs bg-slate-50 flex justify-between items-center">
+                            <div>
+                              <div className="font-bold text-[#1E293B]">{ev.title}</div>
+                              <div className="text-[11px] text-slate-500">{ev.date} — {ev.time}</div>
+                            </div>
+                            {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* LISTA DE PENDIENTES (LÍNEA O KANBAN) */}
+                <div className="lg:col-span-8 bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                  {viewMode === 'linea' && (
+                    <div>
+                      <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b pb-2 mb-6 ml-14 md:ml-16">
+                        <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
+                      </div>
+
+                      <div className="space-y-6">
+                        {syncState === 'loading' && projects.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400 text-xs font-bold">
+                            Descargando pendientes de la nube... ⏳
+                          </div>
+                        ) : filteredProjects.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400 text-xs">
+                            <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
+                            <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
+                          </div>
+                        ) : (
+                          filteredProjects.map((project) => (
+                            <div key={project.id} className="flex items-start group relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center font-extrabold text-xs text-[#1E293B] shadow-sm mr-3 mt-1">
+                                {project.id}
+                              </div>
+
+                              <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
+                                <div className="flex justify-between items-center mb-1 pr-2">
+                                  <span className="font-bold text-xs text-[#1E293B] hover:text-[#FF7A00] transition">{project.title}</span>
+                                  <span className="font-extrabold text-xs text-[#8B5CF6]">{project.percentage}%</span>
+                                </div>
+
+                                <div className="bg-slate-100 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border border-slate-200">
+                                  <div className={`h-full ${project.color} rounded-full transition-all duration-500 shadow-sm`} style={{ width: `${project.percentage}%` }}></div>
+                                </div>
+                              </div>
+
+                              <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {viewMode === 'kanban' && (
+                    <div>
                       {syncState === 'loading' && projects.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 text-xs font-bold">
                           Descargando pendientes de la nube... ⏳
@@ -612,88 +809,113 @@
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                         </div>
                       ) : (
-                        filteredProjects.map((project) => (
-                          <div key={project.id} className="flex items-start group relative">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center font-extrabold text-xs text-[#1E293B] shadow-sm mr-3 mt-1">
-                              {project.id}
-                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                          {KANBAN_COLUMNS.map((col) => {
+                            const colProjects = filteredProjects.filter(p => p.status === col.key);
+                            return (
+                              <div key={col.key} className={`rounded-2xl border ${col.border} ${col.bg} p-3.5 flex flex-col min-h-[250px]`}>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
+                                    {col.emoji} {col.label}
+                                  </h4>
+                                  <span className="text-[10px] font-bold bg-white border border-slate-200 rounded-full px-2.5 py-0.5 text-slate-600">
+                                    {colProjects.length}
+                                  </span>
+                                </div>
 
-                            <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
-                              <div className="flex justify-between items-center mb-1 pr-2">
-                                <span className="font-bold text-xs text-[#1E293B] hover:text-[#FF7A00] transition">{project.title}</span>
-                                <span className="font-extrabold text-xs text-[#8B5CF6]">{project.percentage}%</span>
+                                <div className="space-y-3 flex-grow">
+                                  {colProjects.length === 0 ? (
+                                    <p className="text-[11px] text-slate-400 italic">Sin pendientes en este estado.</p>
+                                  ) : (
+                                    colProjects.map((project) => (
+                                      <div
+                                        key={project.id}
+                                        onClick={() => setSelectedProject(project)}
+                                        className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 cursor-pointer hover:shadow-md transition"
+                                      >
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                          <span className="text-[11px] font-bold text-[#1E293B] leading-snug">{project.title}</span>
+                                          <span className="text-[10px] font-bold text-slate-400 flex-shrink-0">#{project.id}</span>
+                                        </div>
+                                        <div className="bg-slate-100 h-2 rounded-full overflow-hidden mb-1 border border-slate-200">
+                                          <div className={`h-full ${project.color} rounded-full`} style={{ width: `${project.percentage}%` }}></div>
+                                        </div>
+                                        <div className="text-right text-[10px] font-bold text-[#8B5CF6]">{project.percentage}%</div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
                               </div>
-
-                              <div className="bg-slate-100 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border border-slate-200">
-                                <div className={`h-full ${project.color} rounded-full transition-all duration-500 shadow-sm`} style={{ width: `${project.percentage}%` }}></div>
-                              </div>
-                            </div>
-
-                            <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
-                          </div>
-                        ))
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
+              </div>
             </div>
+
+            {/* MODAL DETALLES */}
+            {selectedProject && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
+                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold text-[#1E293B]">{selectedProject.title}</h2>
+                    {getStatusBadge(selectedProject.status)}
+                  </div>
+                  <div className="mb-4 text-sm text-slate-500 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
+
+                  {selectedProject.notes && (
+                    <div className="mb-4 bg-amber-50 border-l-4 border-[#FF7A00] p-3 rounded-r-xl">
+                      <h4 className="text-xs font-bold text-amber-900 uppercase">Anotaciones Importantes:</h4>
+                      <p className="text-sm text-amber-950 mt-0.5">{selectedProject.notes}</p>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <h4 className="text-sm font-bold text-[#1E293B] mb-2">Historial de Actualizaciones:</h4>
+                    {selectedProject.updates && selectedProject.updates.length > 0 ? (
+                      <ul className="space-y-2">
+                        {selectedProject.updates.map((up, idx) => (
+                          <li key={idx} className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
+                              <span className="text-slate-700">{up.text}</span>
+                            </div>
+                            {isAuthenticated && (
+                              <button onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)} className="text-rose-400 hover:text-rose-600 font-bold text-xs flex-shrink-0" title="Eliminar actualización">
+                                🗑️
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No hay registros de actualización previos.</p>
+                    )}
+                  </div>
+
+                  <div className="mb-4">
+                    <h4 className="text-sm font-bold text-[#1E293B] mb-2">Carpeta / Evidencia (Google Drive):</h4>
+                    {selectedProject.driveUrl ? (
+                      <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
+                        📁 Abrir Carpeta en Google Drive ➔
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
+                    )}
+                  </div>
+
+                  <div className="text-right border-t border-slate-100 pt-4">
+                    <button onClick={() => setSelectedProject(null)} className="bg-[#1E293B] hover:bg-slate-900 text-white text-sm px-5 py-2 rounded-xl transition">Cerrar</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* MODAL DETALLES */}
-          {selectedProject && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
-                <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-bold text-[#1E293B]">{selectedProject.title}</h2>
-                  {getStatusBadge(selectedProject.status)}
-                </div>
-                <div className="mb-4 text-sm text-slate-500 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
-
-                {selectedProject.notes && (
-                  <div className="mb-4 bg-amber-50 border-l-4 border-[#FF7A00] p-3 rounded-r-xl">
-                    <h4 className="text-xs font-bold text-amber-900 uppercase">Anotaciones Importantes:</h4>
-                    <p className="text-sm text-amber-950 mt-0.5">{selectedProject.notes}</p>
-                  </div>
-                )}
-
-                <div className="mb-4">
-                  <h4 className="text-sm font-bold text-[#1E293B] mb-2">Historial de Actualizaciones:</h4>
-                  {selectedProject.updates && selectedProject.updates.length > 0 ? (
-                    <ul className="space-y-2">
-                      {selectedProject.updates.map((up, idx) => (
-                        <li key={idx} className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
-                          <div>
-                            <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
-                            <span className="text-slate-700">{up.text}</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No hay registros de actualización previos.</p>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <h4 className="text-sm font-bold text-[#1E293B] mb-2">Carpeta / Evidencia (Google Drive):</h4>
-                  {selectedProject.driveUrl ? (
-                    <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
-                      📁 Abrir Carpeta en Google Drive ➔
-                    </a>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
-                  )}
-                </div>
-
-                <div className="text-right border-t border-slate-100 pt-4">
-                  <button onClick={() => setSelectedProject(null)} className="bg-[#1E293B] hover:bg-slate-900 text-white text-sm px-5 py-2 rounded-xl transition">Cerrar</button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       );
     }
