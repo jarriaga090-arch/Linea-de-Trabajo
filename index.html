@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
+    /* Fondo Geométrico Institucional Sutil inspirado en las montañas */
     body {
       background-color: #F8FAFC;
       background-image: 
@@ -30,6 +31,7 @@
     const AUTH_PASS = "Italia90";
 
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
+
     const REFRESH_MS = 60000;
 
     const KANBAN_COLUMNS = [
@@ -112,7 +114,7 @@
       useEffect(() => {
         const splashTimer = setTimeout(() => {
           setShowSplash(false);
-        }, 1800);
+        }, 1600);
         return () => clearTimeout(splashTimer);
       }, []);
 
@@ -432,42 +434,31 @@
 
       return (
         <div className="relative min-h-screen">
-          {/* SPLASH SCREEN CON TUS LOGOS REALES EN MOVIMIENTO */}
-          <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E293B] text-white transition-all duration-1000 ${showSplash ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-            <div className="relative flex items-center justify-center mb-6">
-              <div className="absolute -inset-6 rounded-full bg-gradient-to-r from-[#FF7A00] to-[#8B5CF6] opacity-30 blur-2xl animate-pulse"></div>
-              
-              <div className="relative flex items-center gap-6 bg-white/10 backdrop-blur-md px-8 py-6 rounded-2xl border border-white/10 shadow-2xl transform scale-105 transition duration-1000 animate-bounce">
-                {/* Logo OCV Monterrey real */}
-                <div className="flex flex-col items-center">
-                  <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" class="h-10 object-contain drop-shadow" />
-                </div>
-
-                <div className="w-[1px] h-12 bg-white/20"></div>
-
-                {/* Logo Escudo Dinámico real */}
-                <div className="flex items-center gap-3">
-                  <img src="imágenes.jpeg" alt="Escudo Línea de Trabajo" class="h-12 w-12 object-cover rounded-xl shadow-lg border border-white/20" />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-extrabold text-[#FF7A00] tracking-wider">LÍNEA DE TRABAJO</span>
-                    <span className="text-[10px] text-[#8B5CF6] font-bold uppercase">Secretaría de Turismo</span>
-                  </div>
-                </div>
-              </div>
+          {/* SPLASH SCREEN */}
+          <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-700 ${showSplash ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <div className="flex items-center gap-4 mb-4">
+              <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-12 object-contain" />
+              <div className="w-[1px] h-10 bg-white/20"></div>
+              <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-12 object-contain" />
             </div>
-
-            <div className="mt-4 flex items-center gap-2 text-xs text-slate-300 font-medium tracking-wide">
-              <span className="inline-block w-3 h-3 border-2 border-[#FF7A00] border-t-transparent rounded-full animate-spin"></span>
-              Cargando plataforma y sincronizando entorno...
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-wider uppercase text-center px-4">
+              Secretaría de Turismo y OCV
+            </h1>
+            <p className="text-[#8B5CF6] tracking-widest text-xs font-semibold mt-2 uppercase">
+              Línea de Progreso 2026
+            </p>
+            <div className="mt-8 flex items-center gap-2 text-xs text-slate-400">
+              <span className="inline-block w-4 h-4 border-2 border-[#FF7A00] border-t-transparent rounded-full animate-spin"></span>
+              Cargando entorno institucional...
             </div>
           </div>
 
           {/* CONTENIDO PRINCIPAL */}
           <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-            {/* HEADER CON LOGOS REALES */}
+            {/* HEADER INNOVADOR E INSTITUCIONAL */}
             <header className="text-center mb-6 relative bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" class="h-9 object-contain" />
+                <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 object-contain" />
               </div>
 
               <div className="text-center">
@@ -484,12 +475,12 @@
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <img src="imágenes.jpeg" alt="Escudo" class="h-10 w-10 object-cover rounded-lg shadow-sm border border-slate-200" />
+              <div className="flex items-center gap-3">
+                <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-10 object-contain" />
                 {isAuthenticated ? (
                   <>
                     <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
-                      {isAdminOpen ? 'Ocultar' : '⚙️ Admin'}
+                      {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
                     </button>
                     <button onClick={handleLogout} className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
                       🔒 Salir
@@ -497,7 +488,7 @@
                   </>
                 ) : (
                   <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#1E293B] hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition">
-                    🔐 Ingresar
+                    🔐 Acceso Admin
                   </button>
                 )}
               </div>
