@@ -9,19 +9,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <style>
-    /* Fondo Geométrico Institucional Sutil inspirado en las montañas */
-    body {
-      background-color: #F8FAFC;
-      background-image: 
-        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(255, 122, 0, 0.05) 0%, transparent 40%),
-        linear-gradient(135deg, rgba(30, 41, 59, 0.03) 0%, transparent 100%);
-      background-attachment: fixed;
-    }
-  </style>
 </head>
-<body class="text-[#1E293B] min-h-screen font-sans">
+<body class="min-h-screen font-sans transition-colors duration-300">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -35,10 +24,10 @@
     const REFRESH_MS = 60000;
 
     const KANBAN_COLUMNS = [
-      { key: 'en-tiempo', label: 'En Tiempo', emoji: '🟢', bg: 'bg-emerald-50/70', border: 'border-emerald-200' },
-      { key: 'demorado', label: 'Demorado', emoji: '🟡', bg: 'bg-amber-50/70', border: 'border-amber-200' },
-      { key: 'detenido', label: 'Detenido', emoji: '🔴', bg: 'bg-rose-50/70', border: 'border-rose-200' },
-      { key: 'completado', label: 'Completado', emoji: '🔵', bg: 'bg-blue-50/70', border: 'border-blue-200' }
+      { key: 'en-tiempo', label: 'En Tiempo', emoji: '🟢' },
+      { key: 'demorado', label: 'Demorado', emoji: '🟡' },
+      { key: 'detenido', label: 'Detenido', emoji: '🔴' },
+      { key: 'completado', label: 'Completado', emoji: '🔵' }
     ];
 
     async function cloudRequest(payload) {
@@ -75,6 +64,7 @@
       const [showSplash, setShowSplash] = useState(true);
       const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState([]);
+      const [darkMode, setDarkMode] = useState(false);
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -446,7 +436,7 @@
         : '';
 
       return (
-        <div className="relative min-h-screen">
+        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#F8FAFC] text-[#1E293B]'}`}>
           {/* SPLASH SCREEN */}
           <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-700 ${showSplash ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
             <div className="flex items-center gap-4 mb-4">
@@ -472,30 +462,40 @@
           {/* CONTENIDO PRINCIPAL */}
           <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
             {/* HEADER INSTITUCIONAL */}
-            <header className="text-center mb-6 relative bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+            <header className={`text-center mb-6 relative backdrop-blur-md p-6 rounded-2xl shadow-sm border flex flex-col md:flex-row items-center justify-between gap-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
               <div className="flex items-center gap-3">
                 <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 object-contain" />
               </div>
 
               <div className="text-center">
-                <h1 className="text-2xl md:text-3xl font-black tracking-wider text-[#1E293B] uppercase">
+                <h1 className={`text-2xl md:text-3xl font-black tracking-wider uppercase ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>
                   TURISMO 360
                 </h1>
                 <p className="text-[#8B5CF6] tracking-widest text-[11px] font-extrabold mt-0.5 uppercase">
                   Project Management &amp; Monitoring Platform
                 </p>
-                <p className="text-slate-600 tracking-wide text-xs font-bold uppercase mt-0.5">
+                <p className={`tracking-wide text-xs font-bold uppercase mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                   Secretaría de Turismo y OCV
                 </p>
                 <p className="text-[11px] font-semibold mt-1">
                   {syncState === 'loading' && <span className="text-slate-400">⏳ Conectando con Google Drive...</span>}
-                  {syncState === 'ok' && <span className="text-emerald-700">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
-                  {syncState === 'error' && <span className="text-rose-600">⚠️ Sin conexión con Google Sheets.</span>}
+                  {syncState === 'ok' && <span className="text-emerald-500">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
+                  {syncState === 'error' && <span className="text-rose-500">⚠️ Sin conexión con Google Sheets.</span>}
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
                 <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-10 object-contain" />
+                
+                {/* BOTÓN MODO DÍA / NOCHE (SOL Y LUNA) */}
+                <button 
+                  onClick={() => setDarkMode(!darkMode)} 
+                  className={`p-2.5 rounded-xl border text-base transition shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'}`}
+                  title={darkMode ? 'Cambiar a Modo Día' : 'Cambiar a Modo Noche'}
+                >
+                  {darkMode ? '☀️' : '🌙'}
+                </button>
+
                 {isAuthenticated ? (
                   <>
                     <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
@@ -506,92 +506,92 @@
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#1E293B] hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition">
+                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className={`font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition ${darkMode ? 'bg-slate-800 text-white hover:bg-slate-700 border border-slate-700' : 'bg-[#1E293B] hover:bg-slate-900 text-white'}`}>
                     🔐 Acceso Admin
                   </button>
                 )}
               </div>
             </header>
 
-            {/* PANEL DE MÉTRICAS EJECUTIVAS (KPI CARDS PARA DIRECCIÓN) */}
+            {/* PANEL DE MÉTRICAS EJECUTIVAS (KPI CARDS) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Pendientes</p>
-                  <h3 className="text-2xl font-black text-[#1E293B] mt-1">{totalProjectsCount}</h3>
+                  <h3 className={`text-2xl font-black mt-1 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>{totalProjectsCount}</h3>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">📊</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>📊</div>
               </div>
 
-              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                 <div>
-                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Índice de Salud</p>
-                  <h3 className="text-2xl font-black text-emerald-700 mt-1">{healthScore}%</h3>
+                  <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Índice de Salud</p>
+                  <h3 className="text-2xl font-black text-emerald-400 mt-1">{healthScore}%</h3>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-lg">🟢</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-emerald-950/50' : 'bg-emerald-50'}`}>🟢</div>
               </div>
 
-              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                 <div>
-                  <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Demorados / Alerta</p>
-                  <h3 className="text-2xl font-black text-amber-700 mt-1">{delayedCount}</h3>
+                  <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Demorados / Alerta</p>
+                  <h3 className="text-2xl font-black text-amber-400 mt-1">{delayedCount}</h3>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-lg">🟡</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-amber-950/50' : 'bg-amber-50'}`}>🟡</div>
               </div>
 
-              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                 <div>
-                  <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Detenidos (Críticos)</p>
-                  <h3 className="text-2xl font-black text-rose-700 mt-1">{stoppedCount}</h3>
+                  <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Detenidos (Críticos)</p>
+                  <h3 className="text-2xl font-black text-rose-400 mt-1">{stoppedCount}</h3>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-lg">🔴</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-rose-950/50' : 'bg-rose-50'}`}>🔴</div>
               </div>
             </div>
 
             {/* AVISO HOJA VACÍA */}
             {cloudEmpty && syncState === 'ok' && (
-              <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
+              <div className={`mb-6 border text-xs rounded-xl p-3 ${darkMode ? 'bg-amber-950/40 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
                 La base de datos en Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> para registrar tus nuevos pendientes.
               </div>
             )}
 
             {/* BARRA DE HERRAMIENTAS Y ORDENAMIENTO */}
-            <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className={`backdrop-blur-md p-3 rounded-xl shadow-sm border mb-6 flex flex-wrap items-center justify-between gap-3 transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-500 uppercase">Filtro Estado:</span>
-                <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? 'bg-[#1E293B] text-white border-transparent' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'}`}>
+                <span className="text-xs font-bold text-slate-400 uppercase">Filtro Estado:</span>
+                <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? (darkMode ? 'bg-slate-700 text-white border-transparent' : 'bg-[#1E293B] text-white border-transparent') : (darkMode ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200')}`}>
                   Todos ({projects.length})
                 </button>
-                <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}>
+                <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : (darkMode ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/50' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200')}`}>
                   🟢 En Tiempo ({onTimeCount})
                 </button>
-                <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
+                <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-600 text-white border-transparent' : (darkMode ? 'bg-amber-950/40 text-amber-400 border-amber-900 hover:bg-amber-900/50' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200')}`}>
                   🟡 Demorado ({delayedCount})
                 </button>
-                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-slate-200'}`}>
+                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : (darkMode ? 'bg-rose-950/40 text-rose-400 border-rose-900 hover:bg-rose-900/50' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-slate-200')}`}>
                   🔴 Detenido ({stoppedCount})
                 </button>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Ordenar:</span>
-                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1.5 bg-slate-50 font-semibold focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Ordenar:</span>
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`text-xs border rounded-lg p-1.5 font-semibold focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
                     <option value="default">Por defecto (ID)</option>
                     <option value="asc">📈 % Menor a Mayor</option>
                     <option value="desc">📉 % Mayor a Menor</option>
                   </select>
                 </div>
 
-                <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-200 transition">
+                <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className={`font-bold text-xs px-3 py-2 rounded-lg border transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}>
                   🔄 Actualizar
                 </button>
 
-                <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex text-xs font-semibold">
-                  <button onClick={() => setViewMode('linea')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'linea' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
+                <div className={`p-1 rounded-lg border flex text-xs font-semibold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                  <button onClick={() => setViewMode('linea')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'linea' ? (darkMode ? 'bg-slate-700 shadow-sm text-white font-bold' : 'bg-white shadow-sm text-[#1E293B] font-bold') : 'text-slate-400 hover:text-slate-200'}`}>
                     📊 Vista Línea
                   </button>
-                  <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'kanban' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-500 hover:text-slate-800'}`}>
+                  <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'kanban' ? (darkMode ? 'bg-slate-700 shadow-sm text-white font-bold' : 'bg-white shadow-sm text-[#1E293B] font-bold') : 'text-slate-400 hover:text-slate-200'}`}>
                     📋 Vista Kanban
                   </button>
                 </div>
@@ -604,19 +604,19 @@
 
             {/* PANEL ADMIN */}
             {isAdminOpen && (
-              <div className="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-md border border-[#8B5CF6]/30 mb-8">
+              <div className={`max-w-5xl mx-auto p-6 rounded-2xl shadow-md border mb-8 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#8B5CF6]/30 text-[#1E293B]'}`}>
                 {!isAuthenticated ? (
                   <div className="max-w-sm mx-auto p-4">
-                    <h2 className="text-center font-bold text-[#1E293B] mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
+                    <h2 className="text-center font-bold mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
                     {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Usuario</label>
-                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Usuario" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Usuario" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Contraseña</label>
-                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]" placeholder="Contraseña" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Contraseña</label>
+                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Contraseña" />
                       </div>
                       <button type="submit" className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition shadow-sm">
                         Ingresar
@@ -625,35 +625,35 @@
                   </div>
                 ) : (
                   <div>
-                    <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-3">
+                    <div className={`mb-6 p-4 border rounded-xl flex items-center justify-between gap-3 ${darkMode ? 'bg-purple-950/40 border-purple-900 text-purple-200' : 'bg-purple-50 border-purple-200 text-purple-900'}`}>
                       <div>
-                        <h3 className="font-bold text-xs text-purple-900 uppercase">Sincronización Manual con Excel</h3>
-                        <p className="text-xs text-purple-700">Actualiza y fuerza el volcado de los datos actuales hacia la nube.</p>
+                        <h3 className="font-bold text-xs uppercase">Sincronización Manual con Excel</h3>
+                        <p className="text-xs opacity-80">Actualiza y fuerza el volcado de los datos actuales hacia la nube.</p>
                       </div>
                       <button onClick={handleForcePushToCloud} disabled={isLoading} className="bg-[#8B5CF6] hover:bg-[#7c3aed] disabled:opacity-60 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0">
                         {isLoading ? '⏳ Enviando...' : '☁️ Enviar Datos al Excel'}
                       </button>
                     </div>
 
-                    <h2 className="text-lg font-bold text-[#1E293B] mb-4 border-b pb-2 flex items-center justify-between">
+                    <h2 className="text-lg font-bold mb-4 border-b pb-2 flex items-center justify-between">
                       <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
                       <span className="text-xs text-slate-400 font-normal">Drive gestiona las carpetas automáticamente</span>
                     </h2>
 
                     <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Título / Descripción de la Actividad</label>
-                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título / Descripción de la Actividad</label>
+                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
-                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00]" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
+                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Estado (Semáforo)</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado (Semáforo)</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
                           <option value="en-tiempo">🟢 En Tiempo</option>
                           <option value="demorado">🟡 Demorado</option>
                           <option value="detenido">🔴 Detenido</option>
@@ -662,8 +662,8 @@
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Color de la Barra (Innovador)</label>
-                        <select value={color} onChange={e => setColor(e.target.value)} className="w-full border border-slate-300 rounded p-2 text-sm font-semibold">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color de la Barra (Innovador)</label>
+                        <select value={color} onChange={e => setColor(e.target.value)} className={`w-full border rounded p-2 text-sm font-semibold ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
                           <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
                           <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
                           <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
@@ -674,32 +674,32 @@
                       </div>
 
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Enlace de Carpeta en Google Drive</label>
-                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className="w-full border border-slate-300 rounded p-2 text-sm" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Enlace de Carpeta en Google Drive</label>
+                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
 
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Anotaciones Importantes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className="w-full border border-slate-300 rounded p-2 text-sm"></textarea>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Anotaciones Importantes</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}></textarea>
                       </div>
 
-                      <div className="md:col-span-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Historial de Actualizaciones</label>
+                      <div className={`md:col-span-2 p-3 rounded-xl border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Historial de Actualizaciones</label>
                         {updatesList.length === 0 ? (
                           <p className="text-xs text-slate-400 italic mb-2">No hay actualizaciones registradas.</p>
                         ) : (
                           <div className="space-y-2 mb-3">
                             {updatesList.map((up, idx) => (
                               <div key={idx} className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-slate-500 w-24 flex-shrink-0">{up.date}:</span>
-                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className="w-full border rounded p-1 text-xs bg-white" />
+                                <span className="text-xs font-semibold text-slate-400 w-24 flex-shrink-0">{up.date}:</span>
+                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={`w-full border rounded p-1 text-xs ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
                                 <button type="button" onClick={() => handleDeleteUpdate(idx)} className="text-rose-500 font-bold text-sm px-2">🗑️</button>
                               </div>
                             ))}
                           </div>
                         )}
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
-                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="Ej. Se validaron lineamientos." className="w-full border rounded p-2 text-sm bg-white" />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
+                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="Ej. Se validaron lineamientos." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
                       </div>
 
                       <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
@@ -713,7 +713,7 @@
 
                         <div className="flex gap-2">
                           {editId && (
-                            <button type="button" onClick={resetForm} className="bg-slate-300 text-slate-700 text-xs px-4 py-2 rounded-lg hover:bg-slate-400 font-bold">
+                            <button type="button" onClick={resetForm} className={`text-xs px-4 py-2 rounded-lg font-bold ${darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'}`}>
                               Cancelar
                             </button>
                           )}
@@ -727,15 +727,15 @@
 
                     {/* LISTA DE PENDIENTES CREADOS */}
                     {projects.length > 0 && (
-                      <div className="mt-6 border-t pt-4">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
+                      <div className="mt-6 border-t pt-4 border-slate-700">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
                         <div className="flex flex-wrap gap-2">
                           {projects.map(p => (
-                            <div key={p.id} className="inline-flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-sm">
-                              <button onClick={() => handleEditClick(p)} className="text-xs bg-white hover:bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 border-r border-slate-200">
+                            <div key={p.id} className={`inline-flex items-center border rounded-lg overflow-hidden shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                              <button onClick={() => handleEditClick(p)} className={`text-xs px-3 py-1.5 font-semibold border-r transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'}`}>
                                 ✏️ #{p.id} - {p.title.substring(0, 20)}...
                               </button>
-                              <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className="text-xs bg-rose-50 hover:bg-rose-100 text-rose-600 px-2.5 py-1.5 font-bold">
+                              <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className={`text-xs px-2.5 py-1.5 font-bold ${darkMode ? 'bg-rose-950 text-rose-300 hover:bg-rose-900' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}>
                                 🗑️
                               </button>
                             </div>
@@ -754,14 +754,14 @@
 
                 {/* CALENDARIO & REUNIONES */}
                 <div className="lg:col-span-4 space-y-6">
-                  <div className="bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">
+                      <h3 className="font-extrabold text-sm uppercase tracking-wide">
                         📅 {monthNames[month]} {year}
                       </h3>
                       <div className="flex gap-1">
-                        <button onClick={prevMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">◄</button>
-                        <button onClick={nextMonth} className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-xs rounded-lg font-bold">►</button>
+                        <button onClick={prevMonth} className={`px-2.5 py-1 text-xs rounded-lg font-bold ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>◄</button>
+                        <button onClick={nextMonth} className={`px-2.5 py-1 text-xs rounded-lg font-bold ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>►</button>
                       </div>
                     </div>
 
@@ -775,7 +775,7 @@
                         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                         const hasEvent = events.some(e => e.date === dateStr);
                         return (
-                          <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] font-bold border border-[#8B5CF6]/30' : 'hover:bg-slate-100 text-slate-700'}`}>
+                          <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] font-bold border border-[#8B5CF6]/40' : (darkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}>
                             {d}
                           </div>
                         );
@@ -783,9 +783,9 @@
                     </div>
                   </div>
 
-                  <div className="bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-slate-200">
+                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                     <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-extrabold text-[#1E293B] text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
+                      <h3 className="font-extrabold text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
                       {isAuthenticated && (
                         <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-[#8B5CF6] font-bold hover:underline">
                           {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
@@ -794,9 +794,9 @@
                     </div>
 
                     {isAddingEvent && isAuthenticated && (
-                      <form onSubmit={handleSaveEvent} className="bg-slate-50 p-3 rounded-xl mb-4 text-xs space-y-2 border border-slate-200">
-                        <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
-                        <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className="w-full p-2 border border-slate-300 rounded-lg bg-white" />
+                      <form onSubmit={handleSaveEvent} className={`p-3 rounded-xl mb-4 text-xs space-y-2 border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                        <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className={`w-full p-2 border rounded-lg ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
+                        <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className={`w-full p-2 border rounded-lg ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
                         <button type="submit" className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded-lg shadow-sm">Guardar Evento</button>
                       </form>
                     )}
@@ -806,10 +806,10 @@
                         <p className="text-xs text-slate-400 italic">No hay reuniones agendadas.</p>
                       ) : (
                         sortedEvents.map(ev => (
-                          <div key={ev.id} className="p-3 rounded-xl border border-slate-200 text-xs bg-slate-50 flex justify-between items-center">
+                          <div key={ev.id} className={`p-3 rounded-xl border text-xs flex justify-between items-center ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
                             <div>
-                              <div className="font-bold text-[#1E293B]">{ev.title}</div>
-                              <div className="text-[11px] text-slate-500">{ev.date} — {ev.time}</div>
+                              <div className="font-bold">{ev.title}</div>
+                              <div className="text-[11px] text-slate-400">{ev.date} — {ev.time}</div>
                             </div>
                             {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>}
                           </div>
@@ -820,10 +820,10 @@
                 </div>
 
                 {/* LISTA DE PENDIENTES */}
-                <div className="lg:col-span-8 bg-white/90 backdrop-blur-md p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+                <div className={`lg:col-span-8 backdrop-blur-md p-6 md:p-8 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
                   {viewMode === 'linea' && (
                     <div>
-                      <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b pb-2 mb-6 ml-14 md:ml-16">
+                      <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b border-slate-700 pb-2 mb-6 ml-14 md:ml-16">
                         <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
                       </div>
 
@@ -834,23 +834,23 @@
                           </div>
                         ) : sortedAndFilteredProjects.length === 0 ? (
                           <div className="text-center py-12 text-slate-400 text-xs">
-                            <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
+                            <p className="font-semibold text-slate-400 mb-1">No hay pendientes registrados en la base de datos.</p>
                             <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                           </div>
                         ) : (
                           sortedAndFilteredProjects.map((project) => (
                             <div key={project.id} className="flex items-start group relative">
-                              <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center font-extrabold text-xs text-[#1E293B] shadow-sm mr-3 mt-1">
+                              <div className={`w-10 h-10 md:w-12 md:h-12 border-2 rounded-full flex items-center justify-center font-extrabold text-xs shadow-sm mr-3 mt-1 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-[#1E293B]'}`}>
                                 {project.id}
                               </div>
 
                               <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
                                 <div className="flex justify-between items-center mb-1 pr-2">
-                                  <span className="font-bold text-xs text-[#1E293B] hover:text-[#FF7A00] transition">{project.title}</span>
+                                  <span className={`font-bold text-xs transition ${darkMode ? 'text-slate-200 hover:text-[#FF7A00]' : 'text-[#1E293B] hover:text-[#FF7A00]'}`}>{project.title}</span>
                                   <span className="font-extrabold text-xs text-[#8B5CF6]">{project.percentage}%</span>
                                 </div>
 
-                                <div className="bg-slate-100 h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border border-slate-200">
+                                <div className={`h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
                                   <div className={`h-full ${project.color} rounded-full transition-all duration-500 shadow-sm`} style={{ width: `${project.percentage}%` }}></div>
                                 </div>
                               </div>
@@ -871,7 +871,7 @@
                         </div>
                       ) : sortedAndFilteredProjects.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 text-xs">
-                          <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
+                          <p className="font-semibold text-slate-400 mb-1">No hay pendientes registrados en la base de datos.</p>
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                         </div>
                       ) : (
@@ -879,31 +879,31 @@
                           {KANBAN_COLUMNS.map((col) => {
                             const colProjects = sortedAndFilteredProjects.filter(p => p.status === col.key);
                             return (
-                              <div key={col.key} className={`rounded-2xl border ${col.border} ${col.bg} p-3.5 flex flex-col min-h-[250px]`}>
+                              <div key={col.key} className={`rounded-2xl border p-3.5 flex flex-col min-h-[250px] ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
                                 <div className="flex items-center justify-between mb-3">
-                                  <h4 className="text-xs font-extrabold uppercase tracking-wide text-slate-700">
+                                  <h4 className={`text-xs font-extrabold uppercase tracking-wide ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
                                     {col.emoji} {col.label}
                                   </h4>
-                                  <span className="text-[10px] font-bold bg-white border border-slate-200 rounded-full px-2.5 py-0.5 text-slate-600">
+                                  <span className={`text-[10px] font-bold border rounded-full px-2.5 py-0.5 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
                                     {colProjects.length}
                                   </span>
                                 </div>
 
                                 <div className="space-y-3 flex-grow">
                                   {colProjects.length === 0 ? (
-                                    <p className="text-[11px] text-slate-400 italic">Sin pendientes en este estado.</p>
+                                    <p className="text-[11px] text-slate-500 italic">Sin pendientes en este estado.</p>
                                   ) : (
                                     colProjects.map((project) => (
                                       <div
                                         key={project.id}
                                         onClick={() => setSelectedProject(project)}
-                                        className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 cursor-pointer hover:shadow-md transition"
+                                        className={`rounded-xl shadow-sm border p-3 cursor-pointer hover:shadow-md transition ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-[#1E293B]'}`}
                                       >
                                         <div className="flex items-start justify-between gap-2 mb-2">
-                                          <span className="text-[11px] font-bold text-[#1E293B] leading-snug">{project.title}</span>
+                                          <span className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-slate-200' : 'text-[#1E293B]'}`}>{project.title}</span>
                                           <span className="text-[10px] font-bold text-slate-400 flex-shrink-0">#{project.id}</span>
                                         </div>
-                                        <div className="bg-slate-100 h-2 rounded-full overflow-hidden mb-1 border border-slate-200">
+                                        <div className={`h-2 rounded-full overflow-hidden mb-1 border ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
                                           <div className={`h-full ${project.color} rounded-full`} style={{ width: `${project.percentage}%` }}></div>
                                         </div>
                                         <div className="text-right text-[10px] font-bold text-[#8B5CF6]">{project.percentage}%</div>
@@ -925,31 +925,31 @@
 
             {/* MODAL DETALLES */}
             {selectedProject && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-100">
-                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className={`rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-100 text-[#1E293B]'}`}>
+                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 font-bold text-xl">✕</button>
                   <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold text-[#1E293B]">{selectedProject.title}</h2>
+                    <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>{selectedProject.title}</h2>
                     {getStatusBadge(selectedProject.status)}
                   </div>
-                  <div className="mb-4 text-sm text-slate-500 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
+                  <div className="mb-4 text-sm text-slate-400 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
 
                   {selectedProject.notes && (
-                    <div className="mb-4 bg-amber-50 border-l-4 border-[#FF7A00] p-3 rounded-r-xl">
-                      <h4 className="text-xs font-bold text-amber-900 uppercase">Anotaciones Importantes:</h4>
-                      <p className="text-sm text-amber-950 mt-0.5">{selectedProject.notes}</p>
+                    <div className={`mb-4 border-l-4 border-[#FF7A00] p-3 rounded-r-xl ${darkMode ? 'bg-amber-950/30 text-amber-200' : 'bg-amber-50 text-amber-950'}`}>
+                      <h4 className="text-xs font-bold uppercase">Anotaciones Importantes:</h4>
+                      <p className="text-sm mt-0.5">{selectedProject.notes}</p>
                     </div>
                   )}
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-bold text-[#1E293B] mb-2">Historial de Actualizaciones:</h4>
+                    <h4 className={`text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>Historial de Actualizaciones:</h4>
                     {selectedProject.updates && selectedProject.updates.length > 0 ? (
                       <ul className="space-y-2">
                         {selectedProject.updates.map((up, idx) => (
-                          <li key={idx} className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+                          <li key={idx} className={`text-xs p-2.5 rounded-xl border flex items-center justify-between gap-2 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
                             <div>
                               <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
-                              <span className="text-slate-700">{up.text}</span>
+                              <span>{up.text}</span>
                             </div>
                             {isAuthenticated && (
                               <button onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)} className="text-rose-400 hover:text-rose-600 font-bold text-xs flex-shrink-0" title="Eliminar actualización">
@@ -965,7 +965,7 @@
                   </div>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-bold text-[#1E293B] mb-2">Carpeta / Evidencia (Google Drive):</h4>
+                    <h4 className={`text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>Carpeta / Evidencia (Google Drive):</h4>
                     {selectedProject.driveUrl ? (
                       <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
                         📁 Abrir Carpeta en Google Drive ➔
@@ -975,8 +975,8 @@
                     )}
                   </div>
 
-                  <div className="text-right border-t border-slate-100 pt-4">
-                    <button onClick={() => setSelectedProject(null)} className="bg-[#1E293B] hover:bg-slate-900 text-white text-sm px-5 py-2 rounded-xl transition">Cerrar</button>
+                  <div className={`text-right border-t pt-4 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <button onClick={() => setSelectedProject(null)} className={`text-sm px-5 py-2 rounded-xl transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-[#1E293B] hover:bg-slate-900 text-white'}`}>Cerrar</button>
                   </div>
                 </div>
               </div>
