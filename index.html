@@ -16,11 +16,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const AUTH_USER = "Arriaga";
-    const AUTH_PASS = "Italia90";
-
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
-
     const REFRESH_MS = 60000;
 
     const KANBAN_COLUMNS = [
@@ -76,7 +72,6 @@
       const [syncState, setSyncState] = useState('loading');
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
-      const [lastError, setLastError] = useState('');
       const busyRef = useRef(false);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -102,9 +97,7 @@
       const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
 
       useEffect(() => {
-        const splashTimer = setTimeout(() => {
-          setShowSplash(false);
-        }, 1600);
+        const splashTimer = setTimeout(() => setShowSplash(false), 1600);
         return () => clearTimeout(splashTimer);
       }, []);
 
@@ -121,19 +114,12 @@
             setCloudEmpty(true);
             setProjects([]);
           }
-
-          if (data.eventsSeeded) {
-            setEvents(data.events);
-          } else {
-            setEvents([]);
-          }
-
-          setLastError('');
+          if (data.eventsSeeded) setEvents(data.events);
+          else setEvents([]);
           setSyncState('ok');
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al leer de Google Sheets:", error);
-          setLastError(error.message || String(error));
           setSyncState('error');
         }
       };
@@ -146,21 +132,29 @@
         return () => clearInterval(timer);
       }, []);
 
-      const handleLogin = (e) => {
+      const handleLogin = async (e) => {
         e.preventDefault();
-        if (loginUser === AUTH_USER && loginPass === AUTH_PASS) {
+        setIsLoading(true);
+        try {
+          await cloudRequest({ action: 'login', user: loginUser, pass: loginPass });
           setIsAuthenticated(true);
           setAuthError('');
+          window._authU = loginUser;
+          window._authP = loginPass;
           setLoginUser('');
           setLoginPass('');
-        } else {
+        } catch (error) {
           setAuthError('Usuario o contraseña incorrectos.');
+        } finally {
+          setIsLoading(false);
         }
       };
 
       const handleLogout = () => {
         setIsAuthenticated(false);
         setIsAdminOpen(false);
+        window._authU = '';
+        window._authP = '';
         resetForm();
       };
 
@@ -169,23 +163,16 @@
           alert("No hay proyectos cargados en pantalla para enviar.");
           return;
         }
-        if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones. ¿Deseas continuar?`)) return;
+        if (!window.confirm(`Se reemplazará el contenido de Google Sheets con los ${projects.length} proyectos. ¿Continuar?`)) return;
 
         busyRef.current = true;
         setIsLoading(true);
         try {
-          const data = await cloudRequest({ action: 'syncLocal', projects: projects, events: events });
-          if (Array.isArray(data.projects)) setProjects(data.projects);
-          if (Array.isArray(data.events)) setEvents(data.events);
-          setCloudEmpty(false);
-          setLastError('');
+          await cloudRequest({ action: 'syncLocal', user: window._authU, pass: window._authP, projects: projects, events: events });
           setSyncState('ok');
           setLastSync(new Date());
           alert("Sincronización completada correctamente.");
         } catch (error) {
-          console.error("Error al sincronizar:", error);
-          setLastError(error.message || String(error));
-          setSyncState('error');
           alert(`No se pudo sincronizar:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -210,14 +197,11 @@
 
         busyRef.current = true;
         try {
-          const data = await cloudRequest({ action: 'saveProject', project: updatedProj });
+          const data = await cloudRequest({ action: 'saveProject', user: window._authU, pass: window._authP, project: updatedProj });
           const saved = data.project || updatedProj;
           setProjects(prev => prev.map(p => p.id === projectId ? saved : p));
           if (selectedProject?.id === projectId) setSelectedProject(saved);
-          setSyncState('ok');
-          setLastSync(new Date());
         } catch (error) {
-          console.error("Error al guardar en nube:", error);
           alert(`No se pudo eliminar la actualización:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -258,7 +242,7 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          const data = await cloudRequest({ action: 'saveProject', project: projectPayload });
+          const data = await cloudRequest({ action: 'saveProject', user: window._authU, pass: window._authP, project: projectPayload });
           const saved = data.project || projectPayload;
 
           setProjects(prev => editId
@@ -270,12 +254,7 @@
           setSyncState('ok');
           setLastSync(new Date());
           resetForm();
-
-          if (data.warning) alert(`El pendiente se guardó, pero:\n\n${data.warning}`);
         } catch (error) {
-          console.error("Error al guardar en Google Sheets:", error);
-          setLastError(error.message || String(error));
-          setSyncState('error');
           alert(`No se guardó en Google Sheets:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -291,16 +270,15 @@
         try {
           await cloudRequest({
             action: 'deleteProject',
+            user: window._authU,
+            pass: window._authP,
             id: projectToDelete.id,
             folderUrl: projectToDelete.driveUrl
           });
           setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
           if (selectedProject?.id === projectToDelete.id) setSelectedProject(null);
           if (editId === projectToDelete.id) resetForm();
-          setSyncState('ok');
-          setLastSync(new Date());
         } catch (error) {
-          console.error("Error al eliminar en nube:", error);
           alert(`No se pudo eliminar:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -344,16 +322,13 @@
 
         busyRef.current = true;
         try {
-          await cloudRequest({ action: 'saveEvent', event: newEv });
+          await cloudRequest({ action: 'saveEvent', user: window._authU, pass: window._authP, event: newEv });
           setEvents(prev => [...prev, newEv]);
           setEventTitle('');
           setEventDate('');
           setEventTime('');
           setIsAddingEvent(false);
-          setSyncState('ok');
-          setLastSync(new Date());
         } catch (error) {
-          console.error("Error al guardar evento:", error);
           alert(`No se pudo guardar la reunión:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -363,12 +338,9 @@
       const handleDeleteEvent = async (id) => {
         busyRef.current = true;
         try {
-          await cloudRequest({ action: 'deleteEvent', id: id });
+          await cloudRequest({ action: 'deleteEvent', user: window._authU, pass: window._authP, id: id });
           setEvents(prev => prev.filter(e => e.id !== id));
-          setSyncState('ok');
-          setLastSync(new Date());
         } catch (error) {
-          console.error("Error al eliminar evento:", error);
           alert(`No se pudo eliminar la reunión:\n\n${error.message}`);
         } finally {
           busyRef.current = false;
@@ -403,7 +375,6 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      // Métricas KPI Gerenciales
       const totalProjectsCount = projects.length;
       const completedCount = projects.filter(p => p.status === 'completado' || Number(p.percentage) === 100).length;
       const onTimeCount = projects.filter(p => p.status === 'en-tiempo').length;
@@ -411,7 +382,6 @@
       const stoppedCount = projects.filter(p => p.status === 'detenido').length;
       const healthScore = totalProjectsCount > 0 ? Math.round(((onTimeCount + completedCount) / totalProjectsCount) * 100) : 100;
 
-      // Filtrado y ordenamiento dinámico
       const filteredProjects = projects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
       const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
         if (sortBy === 'asc') return Number(a.percentage) - Number(b.percentage);
@@ -431,9 +401,7 @@
         }
       };
 
-      const lastSyncText = lastSync
-        ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-        : '';
+      const lastSyncText = lastSync ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
       return (
         <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#F8FAFC] text-[#1E293B]'}`}>
@@ -459,9 +427,7 @@
             </div>
           </div>
 
-          {/* CONTENIDO PRINCIPAL */}
           <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-            {/* HEADER INSTITUCIONAL */}
             <header className={`text-center mb-6 relative backdrop-blur-md p-6 rounded-2xl shadow-sm border flex flex-col md:flex-row items-center justify-between gap-4 transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
               <div className="flex items-center gap-3">
                 <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 object-contain" />
@@ -487,11 +453,10 @@
               <div className="flex items-center gap-3">
                 <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-10 object-contain" />
                 
-                {/* BOTÓN MODO DÍA / NOCHE (SOL Y LUNA) */}
                 <button 
                   onClick={() => setDarkMode(!darkMode)} 
                   className={`p-2.5 rounded-xl border text-base transition shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'}`}
-                  title={darkMode ? 'Cambiar a Modo Día' : 'Cambiar a Modo Noche'}
+                  title={darkMode ? 'Modo Día' : 'Modo Noche'}
                 >
                   {darkMode ? '☀️' : '🌙'}
                 </button>
@@ -513,17 +478,17 @@
               </div>
             </header>
 
-            {/* PANEL DE MÉTRICAS EJECUTIVAS (KPI CARDS) */}
+            {/* KPI CARDS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Pendientes</p>
-                  <h3 className={`text-2xl font-black mt-1 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>{totalProjectsCount}</h3>
+                  <h3 className="text-2xl font-black mt-1">{totalProjectsCount}</h3>
                 </div>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>📊</div>
               </div>
 
-              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
                 <div>
                   <p className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Índice de Salud</p>
                   <h3 className="text-2xl font-black text-emerald-400 mt-1">{healthScore}%</h3>
@@ -531,95 +496,72 @@
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-emerald-950/50' : 'bg-emerald-50'}`}>🟢</div>
               </div>
 
-              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
                 <div>
-                  <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Demorados / Alerta</p>
+                  <p className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Demorados</p>
                   <h3 className="text-2xl font-black text-amber-400 mt-1">{delayedCount}</h3>
                 </div>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-amber-950/50' : 'bg-amber-50'}`}>🟡</div>
               </div>
 
-              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+              <div className={`backdrop-blur-md p-4 rounded-2xl shadow-sm border flex items-center justify-between ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
                 <div>
-                  <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Detenidos (Críticos)</p>
+                  <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Detenidos</p>
                   <h3 className="text-2xl font-black text-rose-400 mt-1">{stoppedCount}</h3>
                 </div>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${darkMode ? 'bg-rose-950/50' : 'bg-rose-50'}`}>🔴</div>
               </div>
             </div>
 
-            {/* AVISO HOJA VACÍA */}
-            {cloudEmpty && syncState === 'ok' && (
-              <div className={`mb-6 border text-xs rounded-xl p-3 ${darkMode ? 'bg-amber-950/40 border-amber-800 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
-                La base de datos en Google Sheets se encuentra vacía. Abre el <strong>Panel Admin</strong> para registrar tus nuevos pendientes.
-              </div>
-            )}
-
-            {/* BARRA DE HERRAMIENTAS Y ORDENAMIENTO */}
-            <div className={`backdrop-blur-md p-3 rounded-xl shadow-sm border mb-6 flex flex-wrap items-center justify-between gap-3 transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+            {/* BARRA DE HERRAMIENTAS */}
+            <div className={`backdrop-blur-md p-3 rounded-xl shadow-sm border mb-6 flex flex-wrap items-center justify-between gap-3 ${darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-400 uppercase">Filtro Estado:</span>
-                <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? (darkMode ? 'bg-slate-700 text-white border-transparent' : 'bg-[#1E293B] text-white border-transparent') : (darkMode ? 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200')}`}>
-                  Todos ({projects.length})
-                </button>
-                <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : (darkMode ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900 hover:bg-emerald-900/50' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200')}`}>
-                  🟢 En Tiempo ({onTimeCount})
-                </button>
-                <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-600 text-white border-transparent' : (darkMode ? 'bg-amber-950/40 text-amber-400 border-amber-900 hover:bg-amber-900/50' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200')}`}>
-                  🟡 Demorado ({delayedCount})
-                </button>
-                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : (darkMode ? 'bg-rose-950/40 text-rose-400 border-rose-900 hover:bg-rose-900/50' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-slate-200')}`}>
-                  🔴 Detenido ({stoppedCount})
-                </button>
+                <button onClick={() => setStatusFilter('todos')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'todos' ? 'bg-[#1E293B] text-white border-transparent' : 'bg-slate-50 text-slate-700'}`}>Todos</button>
+                <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700'}`}>🟢 En Tiempo</button>
+                <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700'}`}>🟡 Demorado</button>
+                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700'}`}>🔴 Detenido</button>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-slate-400 uppercase">Ordenar:</span>
-                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`text-xs border rounded-lg p-1.5 font-semibold focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={`text-xs border rounded-lg p-1.5 font-semibold ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
                     <option value="default">Por defecto (ID)</option>
                     <option value="asc">📈 % Menor a Mayor</option>
                     <option value="desc">📉 % Mayor a Menor</option>
                   </select>
                 </div>
 
-                <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className={`font-bold text-xs px-3 py-2 rounded-lg border transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'}`}>
-                  🔄 Actualizar
-                </button>
+                <button onClick={() => loadFromCloud()} className={`font-bold text-xs px-3 py-2 rounded-lg border ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'}`}>🔄 Actualizar</button>
 
                 <div className={`p-1 rounded-lg border flex text-xs font-semibold ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
-                  <button onClick={() => setViewMode('linea')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'linea' ? (darkMode ? 'bg-slate-700 shadow-sm text-white font-bold' : 'bg-white shadow-sm text-[#1E293B] font-bold') : 'text-slate-400 hover:text-slate-200'}`}>
-                    📊 Vista Línea
-                  </button>
-                  <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 rounded-md transition ${viewMode === 'kanban' ? (darkMode ? 'bg-slate-700 shadow-sm text-white font-bold' : 'bg-white shadow-sm text-[#1E293B] font-bold') : 'text-slate-400 hover:text-slate-200'}`}>
-                    📋 Vista Kanban
-                  </button>
+                  <button onClick={() => setViewMode('linea')} className={`px-3 py-1.5 rounded-md ${viewMode === 'linea' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-400'}`}>📊 Línea</button>
+                  <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 rounded-md ${viewMode === 'kanban' ? 'bg-white shadow-sm text-[#1E293B] font-bold' : 'text-slate-400'}`}>📋 Kanban</button>
                 </div>
 
-                <button onClick={handleExportPDF} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1">
-                  📄 Exportar PDF
-                </button>
+                <button onClick={handleExportPDF} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm">📄 PDF</button>
               </div>
             </div>
 
             {/* PANEL ADMIN */}
             {isAdminOpen && (
-              <div className={`max-w-5xl mx-auto p-6 rounded-2xl shadow-md border mb-8 transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#8B5CF6]/30 text-[#1E293B]'}`}>
+              <div className={`max-w-5xl mx-auto p-6 rounded-2xl shadow-md border mb-8 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-[#8B5CF6]/30 text-[#1E293B]'}`}>
                 {!isAuthenticated ? (
                   <div className="max-w-sm mx-auto p-4">
-                    <h2 className="text-center font-bold mb-4 text-lg">🔒 Iniciar Sesión de Administrador</h2>
+                    <h2 className="text-center font-bold mb-4 text-lg">🔒 Verificación de Administrador</h2>
                     {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
-                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Usuario" />
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-850 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Usuario" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Contraseña</label>
-                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Contraseña" />
+                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-850 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Contraseña" />
                       </div>
-                      <button type="submit" className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition shadow-sm">
-                        Ingresar
+                      <button type="submit" disabled={isLoading} className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition">
+                        {isLoading ? 'Verificando...' : 'Ingresar de forma segura'}
                       </button>
                     </form>
                   </div>
@@ -627,122 +569,57 @@
                   <div>
                     <div className={`mb-6 p-4 border rounded-xl flex items-center justify-between gap-3 ${darkMode ? 'bg-purple-950/40 border-purple-900 text-purple-200' : 'bg-purple-50 border-purple-200 text-purple-900'}`}>
                       <div>
-                        <h3 className="font-bold text-xs uppercase">Sincronización Manual con Excel</h3>
-                        <p className="text-xs opacity-80">Actualiza y fuerza el volcado de los datos actuales hacia la nube.</p>
+                        <h3 className="font-bold text-xs uppercase">Sincronización Segura con Google Sheets</h3>
+                        <p className="text-xs opacity-80">Volcado validado en el servidor.</p>
                       </div>
-                      <button onClick={handleForcePushToCloud} disabled={isLoading} className="bg-[#8B5CF6] hover:bg-[#7c3aed] disabled:opacity-60 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex-shrink-0">
-                        {isLoading ? '⏳ Enviando...' : '☁️ Enviar Datos al Excel'}
+                      <button onClick={handleForcePushToCloud} disabled={isLoading} className="bg-[#8B5CF6] text-white font-bold text-xs px-4 py-2 rounded-lg shadow">
+                        ☁️ Enviar Datos
                       </button>
                     </div>
 
                     <h2 className="text-lg font-bold mb-4 border-b pb-2 flex items-center justify-between">
                       <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
-                      <span className="text-xs text-slate-400 font-normal">Drive gestiona las carpetas automáticamente</span>
                     </h2>
 
                     <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título / Descripción de la Actividad</label>
-                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística Otoño" className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título</label>
+                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña" className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`} />
                       </div>
-
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
-                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={`w-full border rounded p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7A00] ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje (0-100)</label>
+                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`} />
                       </div>
-
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado (Semáforo)</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}>
                           <option value="en-tiempo">🟢 En Tiempo</option>
                           <option value="demorado">🟡 Demorado</option>
                           <option value="detenido">🔴 Detenido</option>
                           <option value="completado">🔵 Completado</option>
                         </select>
                       </div>
-
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color de la Barra (Innovador)</label>
-                        <select value={color} onChange={e => setColor(e.target.value)} className={`w-full border rounded p-2 text-sm font-semibold ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
-                          <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
-                          <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
-                          <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
-                          <option value="bg-blue-600">🔵 Azul Rey</option>
-                          <option value="bg-rose-600">🔴 Coral Vivo</option>
-                          <option value="bg-amber-500">🟡 Ámbar</option>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color de Barra</label>
+                        <select value={color} onChange={e => setColor(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}>
+                          <option value="bg-[#FF7A00]">🟠 Naranja</option>
+                          <option value="bg-[#8B5CF6]">🟣 Lila</option>
+                          <option value="bg-teal-600">🟢 Turquesa</option>
+                          <option value="bg-blue-600">🔵 Azul</option>
+                          <option value="bg-rose-600">🔴 Coral</option>
                         </select>
                       </div>
-
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Enlace de Carpeta en Google Drive</label>
-                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Importantes</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}></textarea>
                       </div>
-
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Anotaciones Importantes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}></textarea>
-                      </div>
-
-                      <div className={`md:col-span-2 p-3 rounded-xl border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Historial de Actualizaciones</label>
-                        {updatesList.length === 0 ? (
-                          <p className="text-xs text-slate-400 italic mb-2">No hay actualizaciones registradas.</p>
-                        ) : (
-                          <div className="space-y-2 mb-3">
-                            {updatesList.map((up, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-slate-400 w-24 flex-shrink-0">{up.date}:</span>
-                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={`w-full border rounded p-1 text-xs ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
-                                <button type="button" onClick={() => handleDeleteUpdate(idx)} className="text-rose-500 font-bold text-sm px-2">🗑️</button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
-                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="Ej. Se validaron lineamientos." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
-                      </div>
-
-                      <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
-                        <div>
-                          {editId && (
-                            <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition">
-                              🗑️ Eliminar Pendiente y Carpeta
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2">
-                          {editId && (
-                            <button type="button" onClick={resetForm} className={`text-xs px-4 py-2 rounded-lg font-bold ${darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'}`}>
-                              Cancelar
-                            </button>
-                          )}
-                          <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white text-xs px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-60">
-                            {isLoading && <span className="animate-spin">⏳</span>}
-                            {isLoading ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
-                          </button>
-                        </div>
+                      <div className="md:col-span-2 flex justify-end gap-2">
+                        {editId && <button type="button" onClick={resetForm} className="bg-slate-400 text-white text-xs px-4 py-2 rounded">Cancelar</button>}
+                        <button type="submit" disabled={isLoading} className="bg-[#FF7A00] text-white text-xs px-6 py-2 rounded font-bold">
+                          {editId ? 'Guardar Cambios' : 'Anexar Pendiente'}
+                        </button>
                       </div>
                     </form>
-
-                    {/* LISTA DE PENDIENTES CREADOS */}
-                    {projects.length > 0 && (
-                      <div className="mt-6 border-t pt-4 border-slate-700">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {projects.map(p => (
-                            <div key={p.id} className={`inline-flex items-center border rounded-lg overflow-hidden shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                              <button onClick={() => handleEditClick(p)} className={`text-xs px-3 py-1.5 font-semibold border-r transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'}`}>
-                                ✏️ #{p.id} - {p.title.substring(0, 20)}...
-                              </button>
-                              <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className={`text-xs px-2.5 py-1.5 font-bold ${darkMode ? 'bg-rose-950 text-rose-300 hover:bg-rose-900' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}>
-                                🗑️
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -751,233 +628,95 @@
             {/* VISTA PRINCIPAL */}
             <div id="exportable-area">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-                {/* CALENDARIO & REUNIONES */}
                 <div className="lg:col-span-4 space-y-6">
-                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
+                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border ${darkMode ? 'bg-slate-950/40 border-slate-800' : 'bg-white border-slate-200'}`}>
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-extrabold text-sm uppercase tracking-wide">
-                        📅 {monthNames[month]} {year}
-                      </h3>
+                      <h3 className="font-extrabold text-sm uppercase">📅 {monthNames[month]} {year}</h3>
                       <div className="flex gap-1">
-                        <button onClick={prevMonth} className={`px-2.5 py-1 text-xs rounded-lg font-bold ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>◄</button>
-                        <button onClick={nextMonth} className={`px-2.5 py-1 text-xs rounded-lg font-bold ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>►</button>
+                        <button onClick={prevMonth} className="px-2.5 py-1 text-xs rounded font-bold bg-slate-100 text-slate-700">◄</button>
+                        <button onClick={nextMonth} className="px-2.5 py-1 text-xs rounded font-bold bg-slate-100 text-slate-700">►</button>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
                       <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
                     </div>
-
                     <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                      {calendarDays.map((d, index) => {
-                        if (d === null) return <div key={index} className="h-8"></div>;
+                      {calendarDays.map((d, i) => {
+                        if (!d) return <div key={i} className="h-8"></div>;
                         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                        const hasEvent = events.some(e => e.date === dateStr);
-                        return (
-                          <div key={index} className={`h-8 flex flex-col items-center justify-center rounded-xl relative font-semibold transition ${hasEvent ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] font-bold border border-[#8B5CF6]/40' : (darkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')}`}>
-                            {d}
-                          </div>
-                        );
+                        const hasEv = events.some(ev => ev.date === dateStr);
+                        return <div key={i} className={`h-8 flex items-center justify-center rounded-xl font-semibold ${hasEv ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40 font-bold' : ''}`}>{d}</div>;
                       })}
                     </div>
                   </div>
 
-                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-extrabold text-sm uppercase tracking-wide">🔔 Reuniones y Alertas</h3>
-                      {isAuthenticated && (
-                        <button onClick={() => setIsAddingEvent(!isAddingEvent)} className="text-xs text-[#8B5CF6] font-bold hover:underline">
-                          {isAddingEvent ? 'Cancelar' : '➕ Agendar'}
-                        </button>
-                      )}
-                    </div>
-
-                    {isAddingEvent && isAuthenticated && (
-                      <form onSubmit={handleSaveEvent} className={`p-3 rounded-xl mb-4 text-xs space-y-2 border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                        <input type="text" placeholder="Título" value={eventTitle} onChange={e => setEventTitle(e.target.value)} required className={`w-full p-2 border rounded-lg ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
-                        <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className={`w-full p-2 border rounded-lg ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
-                        <button type="submit" className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded-lg shadow-sm">Guardar Evento</button>
-                      </form>
-                    )}
-
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                      {sortedEvents.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic">No hay reuniones agendadas.</p>
-                      ) : (
-                        sortedEvents.map(ev => (
-                          <div key={ev.id} className={`p-3 rounded-xl border text-xs flex justify-between items-center ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
-                            <div>
-                              <div className="font-bold">{ev.title}</div>
-                              <div className="text-[11px] text-slate-400">{ev.date} — {ev.time}</div>
-                            </div>
-                            {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>}
-                          </div>
-                        ))
-                      )}
+                  <div className={`backdrop-blur-md p-5 rounded-2xl shadow-sm border ${darkMode ? 'bg-slate-950/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+                    <h3 className="font-extrabold text-sm uppercase mb-3">🔔 Reuniones</h3>
+                    <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                      {events.length === 0 ? <p className="text-xs text-slate-400">Sin eventos.</p> : events.map(ev => (
+                        <div key={ev.id} className="p-2.5 rounded-lg border text-xs bg-slate-50 text-slate-800 flex justify-between">
+                          <div><b>{ev.title}</b><br/>{ev.date}</div>
+                          {isAuthenticated && <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold">✕</button>}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* LISTA DE PENDIENTES */}
-                <div className={`lg:col-span-8 backdrop-blur-md p-6 md:p-8 rounded-2xl shadow-sm border transition-colors duration-300 ${darkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/90 border-slate-200 text-[#1E293B]'}`}>
-                  {viewMode === 'linea' && (
-                    <div>
-                      <div className="grid grid-cols-5 text-center text-xs font-bold text-slate-400 border-b border-slate-700 pb-2 mb-6 ml-14 md:ml-16">
-                        <div>20%</div><div>40%</div><div>60%</div><div>80%</div><div>100%</div>
-                      </div>
-
-                      <div className="space-y-6">
-                        {syncState === 'loading' && projects.length === 0 ? (
-                          <div className="text-center py-12 text-slate-400 text-xs font-bold">
-                            Descargando pendientes de la nube... ⏳
-                          </div>
-                        ) : sortedAndFilteredProjects.length === 0 ? (
-                          <div className="text-center py-12 text-slate-400 text-xs">
-                            <p className="font-semibold text-slate-400 mb-1">No hay pendientes registrados en la base de datos.</p>
-                            <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
-                          </div>
-                        ) : (
-                          sortedAndFilteredProjects.map((project) => (
-                            <div key={project.id} className="flex items-start group relative">
-                              <div className={`w-10 h-10 md:w-12 md:h-12 border-2 rounded-full flex items-center justify-center font-extrabold text-xs shadow-sm mr-3 mt-1 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-[#1E293B]'}`}>
-                                {project.id}
-                              </div>
-
-                              <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(project)}>
-                                <div className="flex justify-between items-center mb-1 pr-2">
-                                  <span className={`font-bold text-xs transition ${darkMode ? 'text-slate-200 hover:text-[#FF7A00]' : 'text-[#1E293B] hover:text-[#FF7A00]'}`}>{project.title}</span>
-                                  <span className="font-extrabold text-xs text-[#8B5CF6]">{project.percentage}%</span>
-                                </div>
-
-                                <div className={`h-6 md:h-7 rounded-full overflow-hidden shadow-inner w-full border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
-                                  <div className={`h-full ${project.color} rounded-full transition-all duration-500 shadow-sm`} style={{ width: `${project.percentage}%` }}></div>
-                                </div>
-                              </div>
-
-                              <div className="ml-3 mt-6">{getStatusBadge(project.status)}</div>
+                <div className={`lg:col-span-8 backdrop-blur-md p-6 rounded-2xl shadow-sm border ${darkMode ? 'bg-slate-950/40 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  {viewMode === 'linea' ? (
+                    <div className="space-y-6">
+                      {sortedAndFilteredProjects.map(p => (
+                        <div key={p.id} className="flex items-start">
+                          <div className={`w-10 h-10 border-2 rounded-full flex items-center justify-center font-bold text-xs mr-3 ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300'}`}>{p.id}</div>
+                          <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(p)}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-xs">{p.title}</span>
+                              <span className="font-bold text-xs text-[#8B5CF6]">{p.percentage}%</span>
                             </div>
-                          ))
-                        )}
-                      </div>
+                            <div className="bg-slate-100 h-6 rounded-full overflow-hidden border">
+                              <div className={`h-full ${p.color}`} style={{ width: `${p.percentage}%` }}></div>
+                            </div>
+                          </div>
+                          <div className="ml-3 mt-4">{getStatusBadge(p.status)}</div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-
-                  {viewMode === 'kanban' && (
-                    <div>
-                      {syncState === 'loading' && projects.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400 text-xs font-bold">
-                          Descargando pendientes de la nube... ⏳
-                        </div>
-                      ) : sortedAndFilteredProjects.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400 text-xs">
-                          <p className="font-semibold text-slate-400 mb-1">No hay pendientes registrados en la base de datos.</p>
-                          <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                          {KANBAN_COLUMNS.map((col) => {
-                            const colProjects = sortedAndFilteredProjects.filter(p => p.status === col.key);
-                            return (
-                              <div key={col.key} className={`rounded-2xl border p-3.5 flex flex-col min-h-[250px] ${darkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50/70 border-slate-200'}`}>
-                                <div className="flex items-center justify-between mb-3">
-                                  <h4 className={`text-xs font-extrabold uppercase tracking-wide ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    {col.emoji} {col.label}
-                                  </h4>
-                                  <span className={`text-[10px] font-bold border rounded-full px-2.5 py-0.5 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
-                                    {colProjects.length}
-                                  </span>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {KANBAN_COLUMNS.map(col => {
+                        const colP = sortedAndFilteredProjects.filter(p => p.status === col.key);
+                        return (
+                          <div key={col.key} className="rounded-xl border p-3 bg-slate-50/50 flex flex-col min-h-[200px]">
+                            <h4 className="text-xs font-bold uppercase mb-2 text-slate-700">{col.emoji} {col.label} ({colP.length})</h4>
+                            <div className="space-y-2 flex-grow">
+                              {colP.map(p => (
+                                <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white p-2.5 rounded-lg border shadow-sm cursor-pointer">
+                                  <div className="text-xs font-bold text-slate-800 mb-1">{p.title}</div>
+                                  <div className="bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div className={`h-full ${p.color}`} style={{ width: `${p.percentage}%` }}></div>
+                                  </div>
                                 </div>
-
-                                <div className="space-y-3 flex-grow">
-                                  {colProjects.length === 0 ? (
-                                    <p className="text-[11px] text-slate-500 italic">Sin pendientes en este estado.</p>
-                                  ) : (
-                                    colProjects.map((project) => (
-                                      <div
-                                        key={project.id}
-                                        onClick={() => setSelectedProject(project)}
-                                        className={`rounded-xl shadow-sm border p-3 cursor-pointer hover:shadow-md transition ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-[#1E293B]'}`}
-                                      >
-                                        <div className="flex items-start justify-between gap-2 mb-2">
-                                          <span className={`text-[11px] font-bold leading-snug ${darkMode ? 'text-slate-200' : 'text-[#1E293B]'}`}>{project.title}</span>
-                                          <span className="text-[10px] font-bold text-slate-400 flex-shrink-0">#{project.id}</span>
-                                        </div>
-                                        <div className={`h-2 rounded-full overflow-hidden mb-1 border ${darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
-                                          <div className={`h-full ${project.color} rounded-full`} style={{ width: `${project.percentage}%` }}></div>
-                                        </div>
-                                        <div className="text-right text-[10px] font-bold text-[#8B5CF6]">{project.percentage}%</div>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-
               </div>
             </div>
 
-            {/* MODAL DETALLES */}
+            {/* MODAL */}
             {selectedProject && (
               <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className={`rounded-2xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto border transition-colors duration-300 ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-100 text-[#1E293B]'}`}>
-                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 font-bold text-xl">✕</button>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>{selectedProject.title}</h2>
-                    {getStatusBadge(selectedProject.status)}
-                  </div>
-                  <div className="mb-4 text-sm text-slate-400 font-semibold">Progreso: <span className="font-bold text-[#8B5CF6]">{selectedProject.percentage}%</span></div>
-
-                  {selectedProject.notes && (
-                    <div className={`mb-4 border-l-4 border-[#FF7A00] p-3 rounded-r-xl ${darkMode ? 'bg-amber-950/30 text-amber-200' : 'bg-amber-50 text-amber-950'}`}>
-                      <h4 className="text-xs font-bold uppercase">Anotaciones Importantes:</h4>
-                      <p className="text-sm mt-0.5">{selectedProject.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="mb-4">
-                    <h4 className={`text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>Historial de Actualizaciones:</h4>
-                    {selectedProject.updates && selectedProject.updates.length > 0 ? (
-                      <ul className="space-y-2">
-                        {selectedProject.updates.map((up, idx) => (
-                          <li key={idx} className={`text-xs p-2.5 rounded-xl border flex items-center justify-between gap-2 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
-                            <div>
-                              <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
-                              <span>{up.text}</span>
-                            </div>
-                            {isAuthenticated && (
-                              <button onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)} className="text-rose-400 hover:text-rose-600 font-bold text-xs flex-shrink-0" title="Eliminar actualización">
-                                🗑️
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">No hay registros de actualización previos.</p>
-                    )}
-                  </div>
-
-                  <div className="mb-4">
-                    <h4 className={`text-sm font-bold mb-2 ${darkMode ? 'text-white' : 'text-[#1E293B]'}`}>Carpeta / Evidencia (Google Drive):</h4>
-                    {selectedProject.driveUrl ? (
-                      <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
-                        📁 Abrir Carpeta en Google Drive ➔
-                      </a>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">Este pendiente aún no tiene carpeta asignada en la nube.</p>
-                    )}
-                  </div>
-
-                  <div className={`text-right border-t pt-4 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-                    <button onClick={() => setSelectedProject(null)} className={`text-sm px-5 py-2 rounded-xl transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-[#1E293B] hover:bg-slate-900 text-white'}`}>Cerrar</button>
-                  </div>
+                <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 font-bold text-xl">✕</button>
+                  <h2 className="text-xl font-bold mb-2">{selectedProject.title}</h2>
+                  <p className="text-sm text-[#8B5CF6] font-bold mb-4">Progreso: {selectedProject.percentage}%</p>
+                  {selectedProject.notes && <p className="text-xs bg-amber-50 text-amber-900 p-3 rounded mb-4"><b>Notas:</b> {selectedProject.notes}</p>}
+                  <button onClick={() => setSelectedProject(null)} className="w-full bg-[#1E293B] text-white py-2 rounded-xl text-sm">Cerrar</button>
                 </div>
               </div>
             )}
@@ -986,8 +725,7 @@
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
