@@ -80,14 +80,13 @@
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [viewMode, setViewMode] = useState('linea');
       const [statusFilter, setStatusFilter] = useState('todos');
-      const [sortBy, setSortBy] = useState('default'); // 'default', 'asc', 'desc'
+      const [sortBy, setSortBy] = useState('default');
       const [isLoading, setIsLoading] = useState(false);
 
       const [syncState, setSyncState] = useState('loading');
       const [lastSync, setLastSync] = useState(null);
       const [cloudEmpty, setCloudEmpty] = useState(false);
       const [lastError, setLastError] = useState('');
-      const [debugInfo, setDebugInfo] = useState(null);
       const busyRef = useRef(false);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -124,8 +123,6 @@
         if (!silent) setSyncState('loading');
         try {
           const data = await cloudLoad();
-          setDebugInfo(data.debug || null);
-
           if (data.projectsSeeded) {
             setProjects(data.projects);
             setSelectedProject(prev => prev ? (data.projects.find(p => p.id === prev.id) || null) : prev);
@@ -182,7 +179,7 @@
           alert("No hay proyectos cargados en pantalla para enviar.");
           return;
         }
-        if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones que ves en pantalla. ¿Deseas continuar?`)) return;
+        if (!window.confirm(`Se reemplazará el contenido de la hoja de Google Sheets con los ${projects.length} proyectos y ${events.length} reuniones. ¿Deseas continuar?`)) return;
 
         busyRef.current = true;
         setIsLoading(true);
@@ -392,7 +389,7 @@
         const element = document.getElementById('exportable-area');
         html2pdf().set({
           margin: 0.3,
-          filename: `Reporte_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`,
+          filename: `Reporte_Ejecutivo_Turismo360_${new Date().toISOString().split('T')[0]}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2 },
           jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
@@ -416,12 +413,20 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      // Filtrado y ordenamiento dinámico por porcentaje
+      // Métricas KPI Gerenciales
+      const totalProjectsCount = projects.length;
+      const completedCount = projects.filter(p => p.status === 'completado' || Number(p.percentage) === 100).length;
+      const onTimeCount = projects.filter(p => p.status === 'en-tiempo').length;
+      const delayedCount = projects.filter(p => p.status === 'demorado').length;
+      const stoppedCount = projects.filter(p => p.status === 'detenido').length;
+      const healthScore = totalProjectsCount > 0 ? Math.round(((onTimeCount + completedCount) / totalProjectsCount) * 100) : 100;
+
+      // Filtrado y ordenamiento dinámico
       const filteredProjects = projects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
       const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
         if (sortBy === 'asc') return Number(a.percentage) - Number(b.percentage);
         if (sortBy === 'desc') return Number(b.percentage) - Number(a.percentage);
-        return 0; // Orden original por ID
+        return 0;
       });
 
       const sortedEvents = [...events].sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -460,13 +465,13 @@
             </p>
             <div className="mt-8 flex items-center gap-2 text-xs text-slate-400">
               <span className="inline-block w-4 h-4 border-2 border-[#FF7A00] border-t-transparent rounded-full animate-spin"></span>
-              Cargando plataforma y sincronizando entorno...
+              Cargando plataforma ejecutiva...
             </div>
           </div>
 
           {/* CONTENIDO PRINCIPAL */}
           <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-            {/* HEADER INNOVADOR E INSTITUCIONAL */}
+            {/* HEADER INSTITUCIONAL */}
             <header className="text-center mb-6 relative bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 object-contain" />
@@ -508,6 +513,41 @@
               </div>
             </header>
 
+            {/* PANEL DE MÉTRICAS EJECUTIVAS (KPI CARDS PARA DIRECCIÓN) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Pendientes</p>
+                  <h3 className="text-2xl font-black text-[#1E293B] mt-1">{totalProjectsCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg">📊</div>
+              </div>
+
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Índice de Salud</p>
+                  <h3 className="text-2xl font-black text-emerald-700 mt-1">{healthScore}%</h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-lg">🟢</div>
+              </div>
+
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Demorados / Alerta</p>
+                  <h3 className="text-2xl font-black text-amber-700 mt-1">{delayedCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-lg">🟡</div>
+              </div>
+
+              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wider">Detenidos (Críticos)</p>
+                  <h3 className="text-2xl font-black text-rose-700 mt-1">{stoppedCount}</h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-lg">🔴</div>
+              </div>
+            </div>
+
             {/* AVISO HOJA VACÍA */}
             {cloudEmpty && syncState === 'ok' && (
               <div className="mb-6 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-xl p-3">
@@ -523,18 +563,17 @@
                   Todos ({projects.length})
                 </button>
                 <button onClick={() => setStatusFilter('en-tiempo')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'en-tiempo' ? 'bg-emerald-600 text-white border-transparent' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}>
-                  🟢 En Tiempo ({projects.filter(p=>p.status==='en-tiempo').length})
+                  🟢 En Tiempo ({onTimeCount})
                 </button>
                 <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
-                  🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
+                  🟡 Demorado ({delayedCount})
                 </button>
                 <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-slate-200'}`}>
-                  🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
+                  🔴 Detenido ({stoppedCount})
                 </button>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Selector de ordenamiento por porcentaje */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-slate-500 uppercase">Ordenar:</span>
                   <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1.5 bg-slate-50 font-semibold focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]">
