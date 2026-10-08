@@ -92,7 +92,7 @@
       const [eventDate, setEventDate] = useState('');
       const [eventTime, setEventTime] = useState('');
 
-      const [currentDate, setCurrentDate] = useState(new Date(2026, 8, 1));
+      const [currentDate, setCurrentDate] = useState(new Date());
 
       useEffect(() => {
         const splashTimer = setTimeout(() => setShowSplash(false), 1600);
