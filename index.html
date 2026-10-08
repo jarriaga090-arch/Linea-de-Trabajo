@@ -347,7 +347,6 @@
 
       const lastSyncText = lastSync ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
-      // Fecha de hoy real para resaltar el día en curso en el calendario
       const todayReal = new Date();
       const todayYear = todayReal.getFullYear();
       const todayMonth = todayReal.getMonth();
@@ -701,7 +700,7 @@
       );
     }
 
-    ReactDOM.createRoot(default = document.getElementById('root')).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
