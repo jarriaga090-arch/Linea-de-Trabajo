@@ -637,26 +637,26 @@
               </div>
             </div>
 
-            {/* MODAL DETALLES */}
+            {/* MODAL DETALLES CORREGIDO PARA AMBOS MODOS ( DÍA / NOCHE ) */}
             {selectedProject && (
               <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
-                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 font-bold text-xl">✕</button>
+                <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100 border border-slate-800' : 'bg-white text-slate-900 border border-slate-200'}`}>
+                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 font-bold text-xl hover:opacity-80">✕</button>
                   <h2 className="text-xl font-bold mb-1">{selectedProject.title}</h2>
                   <p className="text-sm text-[#8B5CF6] font-bold mb-4">Progreso: {selectedProject.percentage}%</p>
                   
                   {selectedProject.notes && (
-                    <div className="mb-4 bg-amber-50 text-amber-900 p-3 rounded-xl border border-amber-200 text-xs">
+                    <div className={`mb-4 p-3 rounded-xl border text-xs ${darkMode ? 'bg-amber-950/40 border-amber-900 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
                       <b>Notas Importantes:</b> {selectedProject.notes}
                     </div>
                   )}
 
                   <div className="mb-4">
-                    <h4 className="text-xs font-bold uppercase mb-2">Historial de Actualizaciones:</h4>
+                    <h4 className="text-xs font-bold uppercase mb-2 opacity-80">Historial de Actualizaciones:</h4>
                     {selectedProject.updates && selectedProject.updates.length > 0 ? (
                       <ul className="space-y-2">
                         {selectedProject.updates.map((up, idx) => (
-                          <li key={idx} className="text-xs bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border dark:border-slate-700">
+                          <li key={idx} className={`text-xs p-2.5 rounded-xl border transition-colors ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
                             <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
                             <span>{up.text}</span>
                           </li>
@@ -675,7 +675,7 @@
                     </div>
                   )}
 
-                  <button onClick={() => setSelectedProject(null)} className="w-full bg-[#1E293B] text-white py-2 rounded-xl text-sm font-bold">Cerrar</button>
+                  <button onClick={() => setSelectedProject(null)} className={`w-full py-2 rounded-xl text-sm font-bold transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-[#1E293B] hover:bg-slate-900 text-white'}`}>Cerrar</button>
                 </div>
               </div>
             )}
