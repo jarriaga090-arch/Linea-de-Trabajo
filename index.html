@@ -80,6 +80,7 @@
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [viewMode, setViewMode] = useState('linea');
       const [statusFilter, setStatusFilter] = useState('todos');
+      const [sortBy, setSortBy] = useState('default'); // 'default', 'asc', 'desc'
       const [isLoading, setIsLoading] = useState(false);
 
       const [syncState, setSyncState] = useState('loading');
@@ -415,7 +416,14 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
+      // Filtrado y ordenamiento dinámico por porcentaje
       const filteredProjects = projects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
+      const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
+        if (sortBy === 'asc') return Number(a.percentage) - Number(b.percentage);
+        if (sortBy === 'desc') return Number(b.percentage) - Number(a.percentage);
+        return 0; // Orden original por ID
+      });
+
       const sortedEvents = [...events].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
       const getStatusBadge = (st) => {
@@ -507,7 +515,7 @@
               </div>
             )}
 
-            {/* BARRA DE HERRAMIENTAS */}
+            {/* BARRA DE HERRAMIENTAS Y ORDENAMIENTO */}
             <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-500 uppercase">Filtro Estado:</span>
@@ -520,12 +528,22 @@
                 <button onClick={() => setStatusFilter('demorado')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'demorado' ? 'bg-amber-500 text-white border-transparent' : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'}`}>
                   🟡 Demorado ({projects.filter(p=>p.status==='demorado').length})
                 </button>
-                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'}`}>
+                <button onClick={() => setStatusFilter('detenido')} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition ${statusFilter === 'detenido' ? 'bg-rose-600 text-white border-transparent' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-slate-200'}`}>
                   🔴 Detenido ({projects.filter(p=>p.status==='detenido').length})
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Selector de ordenamiento por porcentaje */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-500 uppercase">Ordenar:</span>
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1.5 bg-slate-50 font-semibold focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]">
+                    <option value="default">Por defecto (ID)</option>
+                    <option value="asc">📈 % Menor a Mayor</option>
+                    <option value="desc">📉 % Mayor a Menor</option>
+                  </select>
+                </div>
+
                 <button onClick={() => loadFromCloud()} disabled={syncState === 'loading'} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-lg border border-slate-200 transition">
                   🔄 Actualizar
                 </button>
@@ -775,13 +793,13 @@
                           <div className="text-center py-12 text-slate-400 text-xs font-bold">
                             Descargando pendientes de la nube... ⏳
                           </div>
-                        ) : filteredProjects.length === 0 ? (
+                        ) : sortedAndFilteredProjects.length === 0 ? (
                           <div className="text-center py-12 text-slate-400 text-xs">
                             <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
                             <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
                           </div>
                         ) : (
-                          filteredProjects.map((project) => (
+                          sortedAndFilteredProjects.map((project) => (
                             <div key={project.id} className="flex items-start group relative">
                               <div className="w-10 h-10 md:w-12 md:h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center font-extrabold text-xs text-[#1E293B] shadow-sm mr-3 mt-1">
                                 {project.id}
@@ -812,7 +830,7 @@
                         <div className="text-center py-12 text-slate-400 text-xs font-bold">
                           Descargando pendientes de la nube... ⏳
                         </div>
-                      ) : filteredProjects.length === 0 ? (
+                      ) : sortedAndFilteredProjects.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 text-xs">
                           <p className="font-semibold text-slate-600 mb-1">No hay pendientes registrados en la base de datos.</p>
                           <p>Abre el <strong>Panel Admin</strong> para anexar tu primer pendiente.</p>
@@ -820,7 +838,7 @@
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                           {KANBAN_COLUMNS.map((col) => {
-                            const colProjects = filteredProjects.filter(p => p.status === col.key);
+                            const colProjects = sortedAndFilteredProjects.filter(p => p.status === col.key);
                             return (
                               <div key={col.key} className={`rounded-2xl border ${col.border} ${col.bg} p-3.5 flex flex-col min-h-[250px]`}>
                                 <div className="flex items-center justify-between mb-3">
