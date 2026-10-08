@@ -150,7 +150,7 @@
       };
 
       const handleForcePushToCloud = async () => {
-        if (!window.confirm("¿Sincronizar todos los datos locales con Google Sheets?")) return;
+        if (!window.confirm("¿Sincronizar todos los datos con Google Sheets?")) return;
         busyRef.current = true;
         setIsLoading(true);
         try {
@@ -260,7 +260,6 @@
         setNewUpdateText('');
       };
 
-      // Funciones para guardar y eliminar reuniones
       const handleSaveEvent = async (e) => {
         e.preventDefault();
         if (!eventTitle || !eventDate) return;
