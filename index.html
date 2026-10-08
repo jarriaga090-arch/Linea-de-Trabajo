@@ -347,6 +347,12 @@
 
       const lastSyncText = lastSync ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
+      // Fecha de hoy real para resaltar el día en curso en el calendario
+      const todayReal = new Date();
+      const todayYear = todayReal.getFullYear();
+      const todayMonth = todayReal.getMonth();
+      const todayDate = todayReal.getDate();
+
       return (
         <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#F8FAFC] text-[#1E293B]'}`}>
           {/* SPLASH SCREEN CON LOGOS */}
@@ -593,7 +599,18 @@
                       if (!d) return <div key={i} className="h-8"></div>;
                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                       const hasEv = events.some(ev => ev.date === dateStr);
-                      return <div key={i} className={`h-8 flex items-center justify-center rounded-xl font-semibold ${hasEv ? 'bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40 font-bold' : ''}`}>{d}</div>;
+                      const isToday = (year === todayYear && month === todayMonth && d === todayDate);
+
+                      let dayClasses = "h-8 flex items-center justify-center rounded-xl font-semibold ";
+                      if (isToday) {
+                        dayClasses += "bg-[#FF7A00] text-white font-black shadow-sm ring-2 ring-[#FF7A00]/50 ";
+                      } else if (hasEv) {
+                        dayClasses += "bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40 font-bold ";
+                      } else {
+                        dayClasses += darkMode ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100";
+                      }
+
+                      return <div key={i} className={dayClasses}>{d}</div>;
                     })}
                   </div>
                 </div>
@@ -637,7 +654,7 @@
               </div>
             </div>
 
-            {/* MODAL DETALLES CORREGIDO PARA AMBOS MODOS ( DÍA / NOCHE ) */}
+            {/* MODAL DETALLES */}
             {selectedProject && (
               <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100 border border-slate-800' : 'bg-white text-slate-900 border border-slate-200'}`}>
@@ -684,7 +701,7 @@
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    ReactDOM.createRoot(default = document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
