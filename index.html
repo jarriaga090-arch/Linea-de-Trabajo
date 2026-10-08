@@ -554,11 +554,11 @@
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
-                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-850 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Usuario" />
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Usuario" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Contraseña</label>
-                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-850 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Contraseña" />
+                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} placeholder="Contraseña" />
                       </div>
                       <button type="submit" disabled={isLoading} className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-bold py-2 rounded text-sm transition">
                         {isLoading ? 'Verificando...' : 'Ingresar de forma segura'}
@@ -579,47 +579,113 @@
 
                     <h2 className="text-lg font-bold mb-4 border-b pb-2 flex items-center justify-between">
                       <span>{editId ? `Editar Proyecto ${editId}` : '➕ Anexar Nuevo Pendiente'}</span>
+                      <span className="text-xs text-slate-400 font-normal">Drive gestiona las carpetas automáticamente</span>
                     </h2>
 
                     <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título</label>
-                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña" className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`} />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título / Descripción de la Actividad</label>
+                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Campaña Turística" className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
+
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje (0-100)</label>
-                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`} />
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje de Avance (0 - 100%)</label>
+                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
+
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado (Semáforo)</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
                           <option value="en-tiempo">🟢 En Tiempo</option>
                           <option value="demorado">🟡 Demorado</option>
                           <option value="detenido">🔴 Detenido</option>
                           <option value="completado">🔵 Completado</option>
                         </select>
                       </div>
+
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color de Barra</label>
-                        <select value={color} onChange={e => setColor(e.target.value)} className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}>
-                          <option value="bg-[#FF7A00]">🟠 Naranja</option>
-                          <option value="bg-[#8B5CF6]">🟣 Lila</option>
-                          <option value="bg-teal-600">🟢 Turquesa</option>
-                          <option value="bg-blue-600">🔵 Azul</option>
-                          <option value="bg-rose-600">🔴 Coral</option>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color de la Barra</label>
+                        <select value={color} onChange={e => setColor(e.target.value)} className={`w-full border rounded p-2 text-sm font-semibold ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}>
+                          <option value="bg-[#FF7A00]">🟠 Naranja Institucional</option>
+                          <option value="bg-[#8B5CF6]">🟣 Lila / Violeta</option>
+                          <option value="bg-teal-600">🟢 Turquesa Oscuro</option>
+                          <option value="bg-blue-600">🔵 Azul Rey</option>
+                          <option value="bg-rose-600">🔴 Coral Vivo</option>
+                          <option value="bg-amber-500">🟡 Ámbar</option>
                         </select>
                       </div>
+
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Importantes</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-8' : 'border-slate-300'}`}></textarea>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Enlace de Carpeta en Google Drive</label>
+                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Automático..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`} />
                       </div>
-                      <div className="md:col-span-2 flex justify-end gap-2">
-                        {editId && <button type="button" onClick={resetForm} className="bg-slate-400 text-white text-xs px-4 py-2 rounded">Cancelar</button>}
-                        <button type="submit" disabled={isLoading} className="bg-[#FF7A00] text-white text-xs px-6 py-2 rounded font-bold">
-                          {editId ? 'Guardar Cambios' : 'Anexar Pendiente'}
-                        </button>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Anotaciones Importantes</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" placeholder="Comentarios clave..." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'border-slate-300'}`}></textarea>
+                      </div>
+
+                      {/* HISTORIAL DE ACTUALIZACIONES */}
+                      <div className={`md:col-span-2 p-3 rounded-xl border ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Historial de Actualizaciones (Bitácora)</label>
+                        {updatesList.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic mb-2">No hay actualizaciones registradas.</p>
+                        ) : (
+                          <div className="space-y-2 mb-3">
+                            {updatesList.map((up, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-400 w-24 flex-shrink-0">{up.date}:</span>
+                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={`w-full border rounded p-1 text-xs ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
+                                <button type="button" onClick={() => handleDeleteUpdate(idx)} className="text-rose-500 font-bold text-sm px-2">🗑️</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 mt-3">➕ Agregar Nueva Actualización</label>
+                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="Ej. Se validaron lineamientos con OCV." className={`w-full border rounded p-2 text-sm ${darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300'}`} />
+                      </div>
+
+                      <div className="md:col-span-2 flex justify-between items-center gap-2 mt-2">
+                        <div>
+                          {editId && (
+                            <button type="button" disabled={isLoading} onClick={() => { const p = projects.find(item => item.id === editId); if (p) handleDeleteProject(p); }} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition">
+                              🗑️ Eliminar Pendiente
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          {editId && (
+                            <button type="button" onClick={resetForm} className={`text-xs px-4 py-2 rounded-lg font-bold ${darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'}`}>
+                              Cancelar
+                            </button>
+                          )}
+                          <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] text-white text-xs px-6 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-60">
+                            {isLoading && <span className="animate-spin">⏳</span>}
+                            {isLoading ? 'Guardando...' : (editId ? 'Guardar Cambios' : 'Anexar Pendiente')}
+                          </button>
+                        </div>
                       </div>
                     </form>
+
+                    {/* LISTA DE PENDIENTES CREADOS PARA EDICIÓN RÁPIDA */}
+                    {projects.length > 0 && (
+                      <div className="mt-6 border-t pt-4 border-slate-700">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Selecciona un pendiente para editar o eliminar:</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {projects.map(p => (
+                            <div key={p.id} className={`inline-flex items-center border rounded-lg overflow-hidden shadow-sm ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                              <button onClick={() => handleEditClick(p)} className={`text-xs px-3 py-1.5 font-semibold border-r transition ${darkMode ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'}`}>
+                                ✏️ #{p.id} - {p.title.substring(0, 20)}...
+                              </button>
+                              <button onClick={() => handleDeleteProject(p)} disabled={isLoading} className={`text-xs px-2.5 py-1.5 font-bold ${darkMode ? 'bg-rose-950 text-rose-300 hover:bg-rose-900' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}>
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -708,15 +774,59 @@
               </div>
             </div>
 
-            {/* MODAL */}
+            {/* MODAL DETALLES */}
             {selectedProject && (
               <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+                <div className={`rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
                   <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 font-bold text-xl">✕</button>
-                  <h2 className="text-xl font-bold mb-2">{selectedProject.title}</h2>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold">{selectedProject.title}</h2>
+                    {getStatusBadge(selectedProject.status)}
+                  </div>
                   <p className="text-sm text-[#8B5CF6] font-bold mb-4">Progreso: {selectedProject.percentage}%</p>
-                  {selectedProject.notes && <p className="text-xs bg-amber-50 text-amber-900 p-3 rounded mb-4"><b>Notas:</b> {selectedProject.notes}</p>}
-                  <button onClick={() => setSelectedProject(null)} className="w-full bg-[#1E293B] text-white py-2 rounded-xl text-sm">Cerrar</button>
+                  
+                  {selectedProject.notes && (
+                    <div className="mb-4 bg-amber-50 text-amber-900 p-3 rounded-xl border border-amber-200">
+                      <h4 className="text-xs font-bold uppercase">Notas Importantes:</h4>
+                      <p className="text-xs mt-0.5">{selectedProject.notes}</p>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <h4 className="text-xs font-bold uppercase mb-2">Historial de Actualizaciones:</h4>
+                    {selectedProject.updates && selectedProject.updates.length > 0 ? (
+                      <ul className="space-y-2">
+                        {selectedProject.updates.map((up, idx) => (
+                          <li key={idx} className="text-xs bg-slate-50 text-slate-800 p-2.5 rounded-xl border flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
+                              <span>{up.text}</span>
+                            </div>
+                            {isAuthenticated && (
+                              <button onClick={() => handleDeleteUpdateFromModal(selectedProject.id, idx)} className="text-rose-500 font-bold text-xs" title="Eliminar actualización">
+                                🗑️
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No hay actualizaciones registradas.</p>
+                    )}
+                  </div>
+
+                  <div className="mb-4">
+                    <h4 className="text-xs font-bold uppercase mb-2">Carpeta en Google Drive:</h4>
+                    {selectedProject.driveUrl ? (
+                      <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2 rounded-xl transition">
+                        📁 Abrir Carpeta ➔
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Sin carpeta asignada.</p>
+                    )}
+                  </div>
+
+                  <button onClick={() => setSelectedProject(null)} className="w-full bg-[#1E293B] hover:bg-slate-900 text-white py-2 rounded-xl text-sm font-bold transition">Cerrar</button>
                 </div>
               </div>
             )}
