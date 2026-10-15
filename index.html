@@ -19,13 +19,6 @@
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
     const REFRESH_MS = 60000;
 
-    const KANBAN_COLUMNS = [
-      { key: 'en-tiempo', label: 'En Tiempo', emoji: '🟢' },
-      { key: 'demorado', label: 'Demorado', emoji: '🟡' },
-      { key: 'detenido', label: 'Detenido', emoji: '🔴' },
-      { key: 'completado', label: 'Completado', emoji: '🔵' }
-    ];
-
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -60,11 +53,11 @@
       const [showSplash, setShowSplash] = useState(true);
       const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState([]);
+      const [infrastructure, setInfrastructure] = useState([]);
       const [darkMode, setDarkMode] = useState(false);
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
-      const [viewMode, setViewMode] = useState('linea');
       const [statusFilter, setStatusFilter] = useState('todos');
       const [sortBy, setSortBy] = useState('default');
       const [isLoading, setIsLoading] = useState(false);
@@ -108,6 +101,8 @@
           else setProjects([]);
           if (data.events) setEvents(data.events);
           else setEvents([]);
+          if (data.infrastructure) setInfrastructure(data.infrastructure);
+          else setInfrastructure([]);
           setSyncState('ok');
           setLastSync(new Date());
         } catch (error) {
@@ -146,23 +141,6 @@
         window._authU = '';
         window._authP = '';
         resetForm();
-      };
-
-      const handleForcePushToCloud = async () => {
-        if (!window.confirm("¿Sincronizar todos los datos con Google Sheets?")) return;
-        busyRef.current = true;
-        setIsLoading(true);
-        try {
-          await cloudRequest({ action: 'syncLocal', user: window._authU, pass: window._authP, projects, events });
-          setSyncState('ok');
-          setLastSync(new Date());
-          alert("Sincronización completada.");
-        } catch (error) {
-          alert(`Error: ${error.message}`);
-        } finally {
-          busyRef.current = false;
-          setIsLoading(false);
-        }
       };
 
       const handleUpdateChange = (index, newText) => {
@@ -628,6 +606,40 @@
                         )}
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* NUEVO PANEL DE INFRAESTRUCTURA Y ACCESO RÁPIDO */}
+                <div className={`p-5 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  <h3 className="font-extrabold text-sm uppercase mb-3">🌐 Infraestructura y Sitios OCV</h3>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {infrastructure.length === 0 ? (
+                      <p className="text-xs text-slate-400">Verificando sitios e IPs...</p>
+                    ) : (
+                      infrastructure.map((site, idx) => {
+                        const isOnline = site.status === "En línea";
+                        return (
+                          <div key={idx} className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span title={site.status}>{isOnline ? '🟢' : '🔴'}</span>
+                              <div className="truncate">
+                                <b className="block truncate">{site.name}</b>
+                                <span className="text-[10px] opacity-75">{site.lastCheck}</span>
+                              </div>
+                            </div>
+                            <a 
+                              href={site.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="shrink-0 bg-[#FF7A00] hover:bg-[#e06c00] text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition"
+                              title="Visitar sitio"
+                            >
+                              Visitar ↗
+                            </a>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
