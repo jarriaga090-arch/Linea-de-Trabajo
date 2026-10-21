@@ -107,7 +107,7 @@
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [statusFilter, setStatusFilter] = useState('todos');
-      const [sortBy, setSortBy] = useState('default');
+      const [sortBy, setSortBy] = useState('asc');
       const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
 
@@ -379,10 +379,14 @@
         !searchTerm.trim() || String(p.title || '').toLowerCase().includes(searchTerm.trim().toLowerCase())
       );
       const filteredProjects = searchedProjects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
+
+      /* Orden: menor avance primero por defecto, con desempate estable por número de pendiente */
       const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
-        if (sortBy === 'asc') return Number(a.percentage) - Number(b.percentage);
-        if (sortBy === 'desc') return Number(b.percentage) - Number(a.percentage);
-        return 0;
+        const pa = Number(a.percentage) || 0;
+        const pb = Number(b.percentage) || 0;
+        if (sortBy === 'asc' && pa !== pb) return pa - pb;
+        if (sortBy === 'desc' && pa !== pb) return pb - pa;
+        return String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
       });
 
       const sortedEvents = [...events].sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -446,6 +450,18 @@
         { key: 'detenido', label: 'Detenido', count: stoppedCount },
         { key: 'completado', label: 'Completado', count: completedCount }
       ];
+
+      const sortOptions = [
+        { key: 'asc', icon: '↑', label: 'Menor', full: 'Menor avance primero' },
+        { key: 'desc', icon: '↓', label: 'Mayor', full: 'Mayor avance primero' },
+        { key: 'default', icon: '#', label: 'Orden', full: 'Orden original de registro' }
+      ];
+
+      const sortCaption = sortBy === 'asc'
+        ? '↑ Ordenado de menor a mayor avance'
+        : sortBy === 'desc'
+          ? '↓ Ordenado de mayor a menor avance'
+          : '# Orden original de registro';
 
       const distribution = [
         { label: 'En Tiempo', count: onTimeCount, bar: 'bg-emerald-500' },
@@ -664,7 +680,7 @@
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="relative flex-1 min-w-[160px]">
+                  <div className="relative flex-1 min-w-[150px]">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs opacity-50">🔍</span>
                     <input
                       type="text"
@@ -675,15 +691,29 @@
                     />
                   </div>
 
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    className={inputCls + " !py-2 !text-xs !w-auto min-w-[150px]"}
-                  >
-                    <option value="default">Orden original</option>
-                    <option value="desc">Mayor avance</option>
-                    <option value="asc">Menor avance</option>
-                  </select>
+                  {/* Orden: control segmentado visible */}
+                  <div className={"inline-flex items-center gap-1 p-1 rounded-xl border " + (darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-100 border-slate-200")}>
+                    <span className={"pl-2 pr-1 text-[10px] font-bold uppercase tracking-wider hidden md:inline " + muted}>Orden</span>
+                    {sortOptions.map(o => {
+                      const active = sortBy === o.key;
+                      return (
+                        <button
+                          key={o.key}
+                          onClick={() => setSortBy(o.key)}
+                          title={o.full}
+                          aria-pressed={active}
+                          className={"flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition " + (
+                            active
+                              ? (darkMode ? "bg-[#8B5CF6] text-white shadow-sm" : "bg-white text-[#7c3aed] shadow-sm ring-1 ring-[#8B5CF6]/25")
+                              : (darkMode ? "text-slate-300 hover:bg-slate-700/60" : "text-slate-500 hover:bg-white/70")
+                          )}
+                        >
+                          <span className="text-xs leading-none">{o.icon}</span>
+                          <span>{o.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   <button
                     onClick={handleExportPDF}
@@ -987,10 +1017,11 @@
 
               {/* Columna derecha: proyectos */}
               <div className={card + " lg:col-span-8 p-5 md:p-6"}>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between gap-3 mb-1">
                   <h3 className={"font-extrabold text-xs uppercase tracking-wider " + heading}>Pendientes en seguimiento</h3>
-                  <span className={"text-[10px] font-bold " + muted}>{sortedAndFilteredProjects.length} de {totalProjectsCount}</span>
+                  <span className={"text-[10px] font-bold shrink-0 " + muted}>{sortedAndFilteredProjects.length} de {totalProjectsCount}</span>
                 </div>
+                <p className={"text-[10px] font-semibold mb-4 " + muted}>{sortCaption}</p>
 
                 <div className="space-y-3">
                   {sortedAndFilteredProjects.length === 0 ? (
