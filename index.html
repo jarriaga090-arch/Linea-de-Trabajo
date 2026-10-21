@@ -2,15 +2,63 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Turismo 360 - Secretaría de Turismo y OCV</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1E293B" />
+  <title>Turismo 360 · Secretaría de Turismo y OCV</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+  </script>
+
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    ::selection { background: #8B5CF6; color: #fff; }
+
+    * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    *::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    *::-webkit-scrollbar-track { background: transparent; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .anim-fade-up { animation: fadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+
+    @keyframes splashBar { from { width: 0%; } to { width: 100%; } }
+    .splash-bar { animation: splashBar 1.5s cubic-bezier(.4,0,.2,1) forwards; }
+
+    @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    .toast-in { animation: toastIn .28s cubic-bezier(.22,1,.36,1) both; }
+
+    @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .pulse-dot { animation: pulseDot 1.8s ease-in-out infinite; }
+
+    input[type="date"]::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
+    select option { color: #0f172a; }
+
+    @media print {
+      header, .no-print { display: none !important; }
+      body { background: #fff !important; }
+    }
+  </style>
 </head>
-<body class="min-h-screen font-sans transition-colors duration-300">
+<body class="min-h-screen transition-colors duration-300">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -60,11 +108,15 @@
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       const [statusFilter, setStatusFilter] = useState('todos');
       const [sortBy, setSortBy] = useState('default');
+      const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
 
       const [syncState, setSyncState] = useState('loading');
       const [lastSync, setLastSync] = useState(null);
       const busyRef = useRef(false);
+
+      const [toast, setToast] = useState(null);
+      const toastTimer = useRef(null);
 
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [loginUser, setLoginUser] = useState('');
@@ -87,9 +139,21 @@
 
       const [currentDate, setCurrentDate] = useState(new Date());
 
+      const showToast = (message, type = 'error') => {
+        setToast({ message, type });
+        clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 4200);
+      };
+
       useEffect(() => {
         const splashTimer = setTimeout(() => setShowSplash(false), 1600);
         return () => clearTimeout(splashTimer);
+      }, []);
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') setSelectedProject(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
       }, []);
 
       const loadFromCloud = async (silent = false) => {
@@ -128,6 +192,7 @@
           window._authP = loginPass;
           setLoginUser('');
           setLoginPass('');
+          showToast('Sesión iniciada correctamente.', 'success');
         } catch (error) {
           setAuthError('Usuario o contraseña incorrectos.');
         } finally {
@@ -188,8 +253,9 @@
           setProjects(prev => editId ? prev.map(p => p.id === editId ? saved : p) : [...prev, saved]);
           if (selectedProject?.id === saved.id) setSelectedProject(saved);
           resetForm();
+          showToast(editId ? 'Pendiente actualizado.' : 'Pendiente anexado.', 'success');
         } catch (error) {
-          alert("Error al guardar: " + error.message);
+          showToast("Error al guardar: " + error.message, 'error');
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -197,6 +263,7 @@
       };
 
       const handleDeleteProject = async (proj) => {
+        if (!proj) return;
         if (!window.confirm('¿Deseas eliminar "' + proj.title + '"?')) return;
         busyRef.current = true;
         setIsLoading(true);
@@ -205,8 +272,9 @@
           setProjects(prev => prev.filter(p => p.id !== proj.id));
           if (selectedProject?.id === proj.id) setSelectedProject(null);
           if (editId === proj.id) resetForm();
+          showToast('Pendiente eliminado.', 'success');
         } catch (error) {
-          alert("Error: " + error.message);
+          showToast("Error: " + error.message, 'error');
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -217,7 +285,7 @@
         setEditId(p.id);
         setTitle(p.title);
         setPercentage(p.percentage);
-        setColor(p.color);
+        setColor(p.color || 'bg-[#FF7A00]');
         setStatus(p.status || 'en-tiempo');
         setNotes(p.notes || '');
         setDriveUrl(p.driveUrl || '');
@@ -250,8 +318,9 @@
           setEventTitle('');
           setEventDate('');
           setEventTime('');
+          showToast('Reunión programada.', 'success');
         } catch (error) {
-          alert("Error al guardar reunión: " + error.message);
+          showToast("Error al guardar reunión: " + error.message, 'error');
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -265,7 +334,7 @@
           await cloudRequest({ action: 'deleteEvent', user: window._authU, pass: window._authP, id });
           setEvents(prev => prev.filter(ev => ev.id !== id));
         } catch (error) {
-          alert("Error al eliminar reunión: " + error.message);
+          showToast("Error al eliminar reunión: " + error.message, 'error');
         } finally {
           busyRef.current = false;
           setIsLoading(false);
@@ -278,7 +347,7 @@
           margin: 0.3,
           filename: "Reporte_Turismo360_" + new Date().toISOString().split('T')[0] + ".pdf",
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: darkMode ? '#0B0F19' : '#ffffff' },
           jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
         }).from(element).save();
       };
@@ -306,22 +375,17 @@
       const stoppedCount = projects.filter(p => p.status === 'detenido').length;
       const healthScore = totalProjectsCount > 0 ? Math.round(((onTimeCount + completedCount) / totalProjectsCount) * 100) : 100;
 
-      const filteredProjects = projects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
+      const searchedProjects = projects.filter(p =>
+        !searchTerm.trim() || String(p.title || '').toLowerCase().includes(searchTerm.trim().toLowerCase())
+      );
+      const filteredProjects = searchedProjects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
       const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
         if (sortBy === 'asc') return Number(a.percentage) - Number(b.percentage);
         if (sortBy === 'desc') return Number(b.percentage) - Number(a.percentage);
         return 0;
       });
 
-      const getStatusBadge = (st) => {
-        switch(st) {
-          case 'en-tiempo': return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">🟢 En Tiempo</span>;
-          case 'demorado':  return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">🟡 Demorado</span>;
-          case 'detenido':  return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">🔴 Detenido</span>;
-          case 'completado':return <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">🔵 Completado</span>;
-          default: return null;
-        }
-      };
+      const sortedEvents = [...events].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
       const lastSyncText = lastSync ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -330,221 +394,479 @@
       const todayMonth = todayReal.getMonth();
       const todayDate = todayReal.getDate();
 
+      /* ---------- Design tokens ---------- */
+      const surface = darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200";
+      const card = "rounded-2xl border shadow-sm transition-colors duration-300 " + surface;
+      const subtle = darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200";
+      const muted = darkMode ? "text-slate-400" : "text-slate-500";
+      const heading = darkMode ? "text-white" : "text-slate-900";
+
+      const inputCls = "w-full rounded-xl border px-3 py-2.5 text-sm font-medium outline-none transition focus:ring-4 " + (
+        darkMode
+          ? "bg-slate-800/70 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-[#8B5CF6] focus:ring-[#8B5CF6]/20"
+          : "bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#8B5CF6] focus:ring-[#8B5CF6]/15"
+      );
+      const labelCls = "block text-[10px] font-bold uppercase tracking-wider mb-1.5 " + muted;
+
+      const getStatusBadge = (st) => {
+        const map = {
+          'en-tiempo': {
+            label: 'En Tiempo', dot: 'bg-emerald-500',
+            cls: darkMode ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          },
+          'demorado': {
+            label: 'Demorado', dot: 'bg-amber-500',
+            cls: darkMode ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'
+          },
+          'detenido': {
+            label: 'Detenido', dot: 'bg-rose-500',
+            cls: darkMode ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-rose-50 text-rose-700 border-rose-200'
+          },
+          'completado': {
+            label: 'Completado', dot: 'bg-blue-500',
+            cls: darkMode ? 'bg-blue-500/10 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-200'
+          }
+        };
+        const m = map[st] || {
+          label: 'Sin estado', dot: 'bg-slate-400',
+          cls: darkMode ? 'bg-slate-700/40 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+        };
+        return (
+          <span className={"inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border whitespace-nowrap " + m.cls}>
+            <span className={"w-1.5 h-1.5 rounded-full " + m.dot}></span>
+            {m.label}
+          </span>
+        );
+      };
+
+      const filterPills = [
+        { key: 'todos', label: 'Todos', count: totalProjectsCount },
+        { key: 'en-tiempo', label: 'En Tiempo', count: onTimeCount },
+        { key: 'demorado', label: 'Demorado', count: delayedCount },
+        { key: 'detenido', label: 'Detenido', count: stoppedCount },
+        { key: 'completado', label: 'Completado', count: completedCount }
+      ];
+
+      const distribution = [
+        { label: 'En Tiempo', count: onTimeCount, bar: 'bg-emerald-500' },
+        { label: 'Completado', count: completedCount, bar: 'bg-blue-500' },
+        { label: 'Demorado', count: delayedCount, bar: 'bg-amber-500' },
+        { label: 'Detenido', count: stoppedCount, bar: 'bg-rose-500' }
+      ];
+
+      const kpis = [
+        { label: 'Total Pendientes', value: totalProjectsCount, icon: '📋', tone: darkMode ? 'text-slate-100' : 'text-slate-900', ring: darkMode ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600' },
+        { label: 'Índice de Salud', value: healthScore + '%', icon: '💚', tone: 'text-emerald-500', ring: darkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600' },
+        { label: 'Demorados', value: delayedCount, icon: '⚠️', tone: 'text-amber-500', ring: darkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600' },
+        { label: 'Detenidos', value: stoppedCount, icon: '⛔', tone: 'text-rose-500', ring: darkMode ? 'bg-rose-500/10 text-rose-400' : 'bg-rose-50 text-rose-600' }
+      ];
+
       return (
-        <div className={"min-h-screen transition-colors duration-300 " + (darkMode ? "bg-[#0B0F19] text-slate-100" : "bg-[#F8FAFC] text-[#1E293B]")}>
-          
-          {/* SPLASH SCREEN */}
-          <div className={"fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-700 " + (showSplash ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
-            <div className="flex items-center gap-4 mb-4">
-              <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-12 object-contain" />
-              <div className="w-[1px] h-10 bg-white/20"></div>
-              <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-12 object-contain" />
-            </div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-widest uppercase text-center px-4 bg-gradient-to-r from-white via-slate-200 to-[#FF7A00] bg-clip-text text-transparent">
-              TURISMO 360
-            </h1>
-            <p className="text-[#8B5CF6] tracking-wider text-xs font-bold mt-2 uppercase text-center">
-              Project Management & Monitoring Platform
-            </p>
-            <p className="text-slate-400 text-[11px] font-medium tracking-wide uppercase mt-1">
-              Secretaría de Turismo y OCV
-            </p>
-            <div className="mt-8 flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block w-4 h-4 border-2 border-[#FF7A00] border-t-transparent rounded-full animate-spin"></span>
-              Cargando plataforma ejecutiva...
+        <div className={"min-h-screen transition-colors duration-300 " + (darkMode ? "bg-[#0B0F19] text-slate-100" : "bg-[#F6F8FB] text-[#1E293B]")}>
+
+          {/* ============ SPLASH ============ */}
+          <div className={"fixed inset-0 z-[70] flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-700 " + (showSplash ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
+            <div className="absolute inset-0 opacity-[0.07] pointer-events-none"
+                 style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #FF7A00 0, transparent 45%), radial-gradient(circle at 80% 70%, #8B5CF6 0, transparent 45%)' }}></div>
+
+            <div className="relative flex flex-col items-center px-6">
+              <div className="flex items-center gap-4 mb-6">
+                <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-12 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                <div className="w-px h-10 bg-white/20"></div>
+                <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-12 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              </div>
+
+              <h1 className="text-3xl md:text-4xl font-black tracking-[0.18em] uppercase text-center bg-gradient-to-r from-white via-slate-200 to-[#FF7A00] bg-clip-text text-transparent">
+                TURISMO 360
+              </h1>
+              <p className="text-[#A78BFA] tracking-[0.22em] text-[10px] font-bold mt-3 uppercase text-center">
+                Project Management &amp; Monitoring Platform
+              </p>
+              <p className="text-slate-400 text-[10px] font-semibold tracking-[0.18em] uppercase mt-1.5">
+                Secretaría de Turismo y OCV
+              </p>
+
+              <div className="mt-10 w-56 h-[3px] rounded-full bg-white/10 overflow-hidden">
+                <div className="splash-bar h-full rounded-full bg-gradient-to-r from-[#FF7A00] to-[#8B5CF6]"></div>
+              </div>
+              <p className="mt-4 text-[11px] text-slate-400 font-medium tracking-wide">Cargando plataforma ejecutiva…</p>
             </div>
           </div>
 
-          <div className="p-4 md:p-8 font-sans max-w-[1400px] mx-auto">
-            {/* HEADER */}
-            <header className={"text-center mb-6 relative backdrop-blur-md p-6 rounded-2xl shadow-sm border flex flex-col md:flex-row items-center justify-between gap-4 transition-colors duration-300 " + (darkMode ? "bg-slate-900/90 border-slate-800 text-white" : "bg-white/90 border-slate-200 text-[#1E293B]")}>
-              <div className="flex items-center gap-3">
-                <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 object-contain" />
+          {/* ============ TOP LOADING BAR ============ */}
+          <div className={"fixed top-0 left-0 right-0 z-[65] h-[3px] transition-opacity duration-300 " + (isLoading ? "opacity-100" : "opacity-0")}>
+            <div className="h-full w-full bg-gradient-to-r from-[#FF7A00] via-[#8B5CF6] to-[#FF7A00] animate-pulse"></div>
+          </div>
+
+          {/* ============ TOAST ============ */}
+          {toast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] toast-in w-[calc(100%-2rem)] max-w-md">
+              <div className={"flex items-start gap-3 rounded-xl border px-4 py-3 shadow-xl backdrop-blur-md " + (
+                toast.type === 'success'
+                  ? (darkMode ? "bg-emerald-950/90 border-emerald-800 text-emerald-100" : "bg-white border-emerald-200 text-emerald-900")
+                  : (darkMode ? "bg-rose-950/90 border-rose-800 text-rose-100" : "bg-white border-rose-200 text-rose-900")
+              )}>
+                <span className="text-base leading-none mt-0.5">{toast.type === 'success' ? '✅' : '⚠️'}</span>
+                <p className="text-xs font-semibold leading-relaxed flex-1">{toast.message}</p>
+                <button onClick={() => setToast(null)} className="text-xs font-bold opacity-50 hover:opacity-100 transition">✕</button>
+              </div>
+            </div>
+          )}
+
+          {/* ============ HEADER ============ */}
+          <header className={"sticky top-0 z-40 border-b backdrop-blur-xl transition-colors duration-300 " + (
+            darkMode ? "bg-[#0B0F19]/85 border-slate-800" : "bg-white/85 border-slate-200"
+          )}>
+            <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-3 flex items-center justify-between gap-4">
+
+              <div className="flex items-center gap-3 shrink-0">
+                <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-9 md:h-10 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               </div>
 
-              <div className="text-center">
-                <h1 className={"text-2xl md:text-3xl font-black tracking-wider uppercase " + (darkMode ? "text-white" : "text-[#1E293B]")}>
+              <div className="text-center flex-1 min-w-0">
+                <h1 className={"text-lg md:text-2xl font-black tracking-[0.12em] uppercase leading-tight " + heading}>
                   TURISMO 360
                 </h1>
-                <p className="text-[#8B5CF6] tracking-widest text-[11px] font-extrabold mt-0.5 uppercase">
-                  Project Management & Monitoring Platform
+                <p className="text-[#8B5CF6] tracking-[0.18em] text-[9px] md:text-[10px] font-extrabold uppercase mt-0.5 hidden sm:block">
+                  Project Management &amp; Monitoring Platform
                 </p>
-                <p className={"tracking-wide text-xs font-bold uppercase mt-0.5 " + (darkMode ? "text-slate-400" : "text-slate-600")}>
+                <p className={"tracking-[0.14em] text-[9px] md:text-[10px] font-bold uppercase mt-0.5 " + muted}>
                   Secretaría de Turismo y OCV
                 </p>
-                <p className="text-[11px] font-semibold mt-1">
-                  {syncState === 'loading' && <span className="text-slate-400">⏳ Conectando con Google Drive...</span>}
-                  {syncState === 'ok' && <span className="text-emerald-500">☁️ Sincronizado en tiempo real · {lastSyncText}</span>}
-                  {syncState === 'error' && <span className="text-rose-500">⚠️ Sin conexión con Google Sheets.</span>}
-                </p>
+                <div className="mt-1.5 flex items-center justify-center">
+                  {syncState === 'loading' && (
+                    <span className={"inline-flex items-center gap-1.5 text-[10px] font-semibold " + muted}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 pulse-dot"></span>
+                      Conectando con Google Drive…
+                    </span>
+                  )}
+                  {syncState === 'ok' && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>
+                      Sincronizado en tiempo real · {lastSyncText}
+                    </span>
+                  )}
+                  {syncState === 'error' && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-rose-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                      Sin conexión con Google Sheets
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-10 object-contain" />
-                
-                <button 
-                  onClick={() => setDarkMode(!darkMode)} 
-                  className={"p-2.5 rounded-xl border text-base transition shadow-sm " + (darkMode ? "bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700" : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200")}
+              <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                <img src="Logo_de_la_Secretaría_de_Trabajo_de_Nuevo_León_(2021).svg" alt="Secretaría de Trabajo" className="h-9 md:h-10 object-contain hidden sm:block" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  aria-label={darkMode ? 'Activar modo día' : 'Activar modo noche'}
                   title={darkMode ? 'Modo Día' : 'Modo Noche'}
+                  className={"w-9 h-9 flex items-center justify-center rounded-xl border text-sm transition " + (
+                    darkMode ? "bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700" : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  )}
                 >
                   {darkMode ? '☀️' : '🌙'}
                 </button>
 
                 {isAuthenticated ? (
                   <>
-                    <button onClick={() => setIsAdminOpen(!isAdminOpen)} className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
+                    <button
+                      onClick={() => setIsAdminOpen(!isAdminOpen)}
+                      className="bg-[#8B5CF6] hover:bg-[#7c3aed] text-white font-semibold text-[11px] px-3 py-2 rounded-xl shadow-sm transition"
+                    >
                       {isAdminOpen ? 'Ocultar Admin' : '⚙️ Panel Admin'}
                     </button>
-                    <button onClick={handleLogout} className="bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow-sm transition">
-                      🔒 Salir
+                    <button
+                      onClick={handleLogout}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[11px] px-3 py-2 rounded-xl shadow-sm transition"
+                    >
+                      Salir
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsAdminOpen(!isAdminOpen)} className={"font-medium text-xs px-4 py-2 rounded-lg shadow-sm transition " + (darkMode ? "bg-slate-800 text-white hover:bg-slate-700 border border-slate-700" : "bg-[#1E293B] hover:bg-slate-900 text-white")}>
+                  <button
+                    onClick={() => setIsAdminOpen(!isAdminOpen)}
+                    className={"font-semibold text-[11px] px-4 py-2 rounded-xl shadow-sm transition " + (
+                      darkMode ? "bg-slate-800 text-white hover:bg-slate-700 border border-slate-700" : "bg-[#1E293B] hover:bg-slate-900 text-white"
+                    )}
+                  >
                     🔐 Acceso Admin
                   </button>
                 )}
               </div>
-            </header>
-
-            {/* KPI CARDS */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className={"p-4 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                <p className="text-[11px] font-bold text-slate-400 uppercase">Total Pendientes</p>
-                <h3 className="text-2xl font-black mt-1">{totalProjectsCount}</h3>
-              </div>
-              <div className={"p-4 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                <p className="text-[11px] font-bold text-emerald-500 uppercase">Índice de Salud</p>
-                <h3 className="text-2xl font-black text-emerald-400 mt-1">{healthScore}%</h3>
-              </div>
-              <div className={"p-4 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                <p className="text-[11px] font-bold text-amber-500 uppercase">Demorados</p>
-                <h3 className="text-2xl font-black text-amber-400 mt-1">{delayedCount}</h3>
-              </div>
-              <div className={"p-4 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                <p className="text-[11px] font-bold text-rose-500 uppercase">Detenidos</p>
-                <h3 className="text-2xl font-black text-rose-400 mt-1">{stoppedCount}</h3>
-              </div>
             </div>
+          </header>
 
-            {/* BARRA DE HERRAMIENTAS */}
-            <div className={"p-3 rounded-xl border mb-6 flex flex-wrap items-center justify-between gap-3 " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-400 uppercase">Filtro Estado:</span>
-                <button onClick={() => setStatusFilter('todos')} className={"text-xs px-3 py-1.5 rounded-lg border font-semibold " + (statusFilter === 'todos' ? "bg-[#1E293B] text-white border-transparent" : "bg-slate-50 text-slate-700")}>Todos</button>
-                <button onClick={() => setStatusFilter('en-tiempo')} className={"text-xs px-3 py-1.5 rounded-lg border font-semibold " + (statusFilter === 'en-tiempo' ? "bg-emerald-600 text-white border-transparent" : "bg-emerald-50 text-emerald-700")}>🟢 En Tiempo</button>
-                <button onClick={() => setStatusFilter('demorado')} className={"text-xs px-3 py-1.5 rounded-lg border font-semibold " + (statusFilter === 'demorado' ? "bg-amber-500 text-white border-transparent" : "bg-amber-50 text-amber-700")}>🟡 Demorado</button>
-                <button onClick={() => setStatusFilter('detenido')} className={"text-xs px-3 py-1.5 rounded-lg border font-semibold " + (statusFilter === 'detenido' ? "bg-rose-600 text-white border-transparent" : "bg-rose-50 text-rose-700")}>🔴 Detenido</button>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={handleExportPDF} className="bg-[#FF7A00] text-white font-bold text-xs px-3 py-2 rounded-lg shadow-sm">📄 Exportar PDF</button>
-              </div>
-            </div>
+          <main className="max-w-[1400px] mx-auto px-4 md:px-8 pt-6 pb-14">
 
-            {/* PANEL ADMIN */}
+            {/* ============ KPI CARDS ============ */}
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 anim-fade-up">
+              {kpis.map((k, i) => (
+                <div key={i} className={card + " p-4 md:p-5 hover:shadow-md transition-shadow"}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={"text-[10px] font-bold uppercase tracking-wider leading-tight " + muted}>{k.label}</p>
+                    <span className={"w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 " + k.ring}>{k.icon}</span>
+                  </div>
+                  <h3 className={"text-2xl md:text-3xl font-black mt-2 tabular-nums tracking-tight " + k.tone}>{k.value}</h3>
+                </div>
+              ))}
+            </section>
+
+            {/* ============ DISTRIBUCIÓN ============ */}
+            <section className={card + " p-4 md:p-5 mb-6"}>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <h3 className={"text-[10px] font-bold uppercase tracking-wider " + muted}>Distribución de pendientes</h3>
+                <span className={"text-[10px] font-bold " + muted}>{totalProjectsCount} registrados</span>
+              </div>
+              <div className={"h-2.5 w-full rounded-full overflow-hidden flex " + (darkMode ? "bg-slate-800" : "bg-slate-100")}>
+                {totalProjectsCount === 0 ? (
+                  <div className="h-full w-full bg-slate-300/40"></div>
+                ) : (
+                  distribution.map((d, i) => d.count > 0 && (
+                    <div key={i} className={"h-full " + d.bar} style={{ width: (d.count / totalProjectsCount * 100) + "%" }} title={d.label + ': ' + d.count}></div>
+                  ))
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3">
+                {distribution.map((d, i) => (
+                  <span key={i} className={"inline-flex items-center gap-1.5 text-[10px] font-semibold " + muted}>
+                    <span className={"w-2 h-2 rounded-full " + d.bar}></span>
+                    {d.label} <b className={darkMode ? "text-slate-200" : "text-slate-700"}>{d.count}</b>
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            {/* ============ TOOLBAR ============ */}
+            <section className={card + " p-3 md:p-4 mb-6 no-print"}>
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={"text-[10px] font-bold uppercase tracking-wider mr-1 " + muted}>Estado</span>
+                  {filterPills.map(f => {
+                    const active = statusFilter === f.key;
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => setStatusFilter(f.key)}
+                        className={"text-[11px] px-3 py-1.5 rounded-lg border font-semibold transition " + (
+                          active
+                            ? "bg-[#1E293B] text-white border-transparent shadow-sm"
+                            : (darkMode ? "bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-800" : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100")
+                        )}
+                      >
+                        {f.label}
+                        <span className={"ml-1.5 text-[10px] font-bold " + (active ? "text-white/70" : muted)}>{f.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[160px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs opacity-50">🔍</span>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      placeholder="Buscar pendiente…"
+                      className={inputCls + " !py-2 !pl-9 !text-xs"}
+                    />
+                  </div>
+
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className={inputCls + " !py-2 !text-xs !w-auto min-w-[150px]"}
+                  >
+                    <option value="default">Orden original</option>
+                    <option value="desc">Mayor avance</option>
+                    <option value="asc">Menor avance</option>
+                  </select>
+
+                  <button
+                    onClick={handleExportPDF}
+                    className="bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-[11px] px-4 py-2 rounded-xl shadow-sm transition whitespace-nowrap"
+                  >
+                    📄 Exportar PDF
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* ============ PANEL ADMIN ============ */}
             {isAdminOpen && (
-              <div className={"max-w-5xl mx-auto p-6 rounded-2xl shadow-md border mb-8 " + (darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-[#8B5CF6]/30 text-[#1E293B]")}>
+              <section className={card + " p-5 md:p-7 mb-6 anim-fade-up"}>
+
                 {!isAuthenticated ? (
-                  <div className="max-w-sm mx-auto p-4">
-                    <h2 className="text-center font-bold mb-4 text-lg">🔒 Verificación de Administrador</h2>
-                    {authError && <p className="text-rose-500 text-xs mb-3 text-center font-semibold">{authError}</p>}
+                  <div className="max-w-sm mx-auto py-4">
+                    <div className="text-center mb-6">
+                      <div className={"w-12 h-12 mx-auto rounded-2xl flex items-center justify-center text-xl mb-3 " + (darkMode ? "bg-slate-800" : "bg-slate-100")}>🔒</div>
+                      <h2 className={"font-bold text-base " + heading}>Verificación de Administrador</h2>
+                      <p className={"text-[11px] mt-1 " + muted}>Ingresa tus credenciales para gestionar la plataforma.</p>
+                    </div>
+
+                    {authError && (
+                      <div className={"mb-4 px-3 py-2 rounded-lg border text-[11px] font-semibold text-center " + (
+                        darkMode ? "bg-rose-500/10 border-rose-500/30 text-rose-300" : "bg-rose-50 border-rose-200 text-rose-700"
+                      )}>
+                        {authError}
+                      </div>
+                    )}
+
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Usuario</label>
-                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent" placeholder="Usuario" />
+                        <label className={labelCls}>Usuario</label>
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={inputCls} placeholder="Usuario" autoComplete="username" />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Contraseña</label>
-                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent" placeholder="Contraseña" />
+                        <label className={labelCls}>Contraseña</label>
+                        <input type="password" required value={loginPass} onChange={e => setLoginPass(e.target.value)} className={inputCls} placeholder="Contraseña" autoComplete="current-password" />
                       </div>
-                      <button type="submit" disabled={isLoading} className="w-full bg-[#8B5CF6] text-white font-bold py-2 rounded text-sm">Ingresar</button>
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-[#8B5CF6] hover:bg-[#7c3aed] disabled:opacity-60 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-sm"
+                      >
+                        {isLoading ? 'Verificando…' : 'Ingresar'}
+                      </button>
                     </form>
                   </div>
                 ) : (
-                  <div>
-                    <div className={"mb-6 p-4 rounded-xl border " + (darkMode ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200")}>
-                      <h3 className="text-sm font-bold uppercase mb-3">🔔 Programar Reunión o Alerta</h3>
+                  <div className="space-y-6">
+
+                    {/* Reuniones */}
+                    <div className={"p-4 md:p-5 rounded-xl border " + subtle}>
+                      <h3 className={"text-[11px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2 " + heading}>
+                        <span>🔔</span> Programar Reunión o Alerta
+                      </h3>
                       <form onSubmit={handleSaveEvent} className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título</label>
-                          <input type="text" required value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Reunión OCV" className="w-full border rounded p-2 text-sm bg-transparent" />
+                          <label className={labelCls}>Título</label>
+                          <input type="text" required value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Reunión OCV" className={inputCls} />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Fecha</label>
-                          <input type="date" required value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent" />
+                          <label className={labelCls}>Fecha</label>
+                          <input type="date" required value={eventDate} onChange={e => setEventDate(e.target.value)} className={inputCls} />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Hora</label>
-                          <input type="text" value={eventTime} onChange={e => setEventTime(e.target.value)} placeholder="Ej. 10:00 AM" className="w-full border rounded p-2 text-sm bg-transparent" />
+                          <label className={labelCls}>Hora</label>
+                          <input type="text" value={eventTime} onChange={e => setEventTime(e.target.value)} placeholder="Ej. 10:00 AM" className={inputCls} />
                         </div>
                         <div className="md:col-span-3 flex justify-end">
-                          <button type="submit" disabled={isLoading} className="bg-[#8B5CF6] text-white font-bold text-xs px-5 py-2 rounded-lg">➕ Añadir Reunión</button>
+                          <button type="submit" disabled={isLoading} className="bg-[#8B5CF6] hover:bg-[#7c3aed] disabled:opacity-60 text-white font-bold text-[11px] px-5 py-2.5 rounded-xl transition shadow-sm">
+                            ➕ Añadir Reunión
+                          </button>
                         </div>
                       </form>
                     </div>
 
-                    <h2 className="text-lg font-bold mb-4 border-b pb-2">{editId ? "Editar Proyecto " + editId : "➕ Anexar Nuevo Pendiente"}</h2>
-                    <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Título</label>
-                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Porcentaje</label>
-                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent">
-                          <option value="en-tiempo">🟢 En Tiempo</option>
-                          <option value="demorado">🟡 Demorado</option>
-                          <option value="detenido">🔴 Detenido</option>
-                          <option value="completado">🔵 Completado</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Color</label>
-                        <select value={color} onChange={e => setColor(e.target.value)} className="w-full border rounded p-2 text-sm bg-transparent">
-                          <option value="bg-[#FF7A00]">🟠 Naranja</option>
-                          <option value="bg-[#8B5CF6]">🟣 Lila</option>
-                          <option value="bg-teal-600">🟢 Turquesa</option>
-                          <option value="bg-blue-600">🔵 Azul</option>
-                          <option value="bg-rose-600">🔴 Coral</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" className="w-full border rounded p-2 text-sm bg-transparent"></textarea>
+                    {/* Proyecto */}
+                    <div>
+                      <div className={"flex items-center justify-between gap-3 border-b pb-3 mb-5 " + (darkMode ? "border-slate-800" : "border-slate-200")}>
+                        <h2 className={"text-sm font-bold uppercase tracking-wider " + heading}>
+                          {editId ? "Editar Proyecto #" + editId : "Anexar Nuevo Pendiente"}
+                        </h2>
+                        {editId && (
+                          <span className={"text-[10px] font-bold px-2.5 py-1 rounded-full " + (darkMode ? "bg-[#8B5CF6]/15 text-[#A78BFA]" : "bg-[#8B5CF6]/10 text-[#7c3aed]")}>
+                            Modo edición
+                          </span>
+                        )}
                       </div>
 
-                      <div className={"md:col-span-2 p-3 rounded-xl border " + (darkMode ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200")}>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Historial de Actualizaciones (Bitácora)</label>
-                        {updatesList.map((up, idx) => (
-                          <div key={idx} className="flex items-center gap-2 mb-2">
-                            <span className="text-xs text-slate-400 w-24">{up.date}:</span>
-                            <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className="w-full border rounded p-1 text-xs bg-transparent" />
-                            <button type="button" onClick={() => handleDeleteUpdate(idx)} className="text-rose-500 font-bold text-sm px-2">🗑️</button>
-                          </div>
-                        ))}
-                        <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="➕ Agregar nueva actualización..." className="w-full border rounded p-2 text-sm bg-transparent mt-2" />
-                      </div>
-
-                      <div className="md:col-span-2 flex justify-between items-center">
-                        {editId && <button type="button" onClick={() => handleDeleteProject(projects.find(p => p.id === editId))} className="bg-rose-600 text-white text-xs px-4 py-2 rounded">Eliminar Pendiente</button>}
-                        <div className="flex gap-2 ml-auto">
-                          {editId && <button type="button" onClick={resetForm} className="bg-slate-500 text-white text-xs px-4 py-2 rounded">Cancelar</button>}
-                          <button type="submit" disabled={isLoading} className="bg-[#FF7A00] text-white text-xs px-6 py-2 rounded font-bold">{editId ? 'Guardar Cambios' : 'Anexar Pendiente'}</button>
+                      <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelCls}>Título</label>
+                          <input type="text" required value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder="Nombre del pendiente" />
                         </div>
-                      </div>
-                    </form>
+                        <div>
+                          <label className={labelCls}>Porcentaje de avance</label>
+                          <div className="flex items-center gap-3">
+                            <input type="range" min="0" max="100" value={Number(percentage) || 0} onChange={e => setPercentage(e.target.value)} className="flex-1 accent-[#FF7A00]" />
+                            <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={inputCls + " !w-20 text-center"} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Estado</label>
+                          <select value={status} onChange={e => setStatus(e.target.value)} className={inputCls}>
+                            <option value="en-tiempo">🟢 En Tiempo</option>
+                            <option value="demorado">🟡 Demorado</option>
+                            <option value="detenido">🔴 Detenido</option>
+                            <option value="completado">🔵 Completado</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Color de la barra</label>
+                          <select value={color} onChange={e => setColor(e.target.value)} className={inputCls}>
+                            <option value="bg-[#FF7A00]">🟠 Naranja</option>
+                            <option value="bg-[#8B5CF6]">🟣 Lila</option>
+                            <option value="bg-teal-600">🟢 Turquesa</option>
+                            <option value="bg-blue-600">🔵 Azul</option>
+                            <option value="bg-rose-600">🔴 Coral</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className={labelCls}>Notas</label>
+                          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" className={inputCls + " resize-y"} placeholder="Observaciones relevantes…"></textarea>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className={labelCls}>Carpeta de Google Drive (opcional)</label>
+                          <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} className={inputCls} placeholder="https://drive.google.com/…" />
+                        </div>
+
+                        <div className={"md:col-span-2 p-4 rounded-xl border " + subtle}>
+                          <label className={labelCls}>Historial de Actualizaciones (Bitácora)</label>
+                          {updatesList.length === 0 && (
+                            <p className={"text-[11px] italic mb-2 " + muted}>Sin actualizaciones registradas.</p>
+                          )}
+                          <div className="space-y-2">
+                            {updatesList.map((up, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className={"text-[10px] font-bold w-20 shrink-0 tabular-nums " + muted}>{up.date}</span>
+                                <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={inputCls + " !py-1.5 !text-xs"} />
+                                <button type="button" onClick={() => handleDeleteUpdate(idx)} aria-label="Eliminar actualización" className="text-rose-500 hover:text-rose-600 font-bold text-sm px-2 shrink-0 transition">🗑️</button>
+                              </div>
+                            ))}
+                          </div>
+                          <input type="text" value={newUpdateText} onChange={e => setNewUpdateText(e.target.value)} placeholder="➕ Agregar nueva actualización…" className={inputCls + " mt-2"} />
+                        </div>
+
+                        <div className="md:col-span-2 flex flex-wrap justify-between items-center gap-3 pt-1">
+                          {editId ? (
+                            <button type="button" onClick={() => handleDeleteProject(projects.find(p => p.id === editId))} className="bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl transition">
+                              Eliminar Pendiente
+                            </button>
+                          ) : <span></span>}
+                          <div className="flex gap-2 ml-auto">
+                            {editId && (
+                              <button type="button" onClick={resetForm} className={"text-[11px] font-bold px-4 py-2.5 rounded-xl transition " + (darkMode ? "bg-slate-800 text-slate-200 hover:bg-slate-700" : "bg-slate-200 text-slate-700 hover:bg-slate-300")}>
+                                Cancelar
+                              </button>
+                            )}
+                            <button type="submit" disabled={isLoading} className="bg-[#FF7A00] hover:bg-[#e06c00] disabled:opacity-60 text-white text-[11px] font-bold px-6 py-2.5 rounded-xl transition shadow-sm">
+                              {editId ? 'Guardar Cambios' : 'Anexar Pendiente'}
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
 
                     {projects.length > 0 && (
-                      <div className="mt-6 border-t pt-4 border-slate-700">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase mb-2">Selecciona un pendiente para editar:</h3>
+                      <div className={"border-t pt-4 " + (darkMode ? "border-slate-800" : "border-slate-200")}>
+                        <h3 className={"text-[10px] font-bold uppercase tracking-wider mb-3 " + muted}>Selecciona un pendiente para editar</h3>
                         <div className="flex flex-wrap gap-2">
                           {projects.map(p => (
-                            <button key={p.id} onClick={() => handleEditClick(p)} className="text-xs px-3 py-1.5 border rounded-lg font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
-                              ✏️ #{p.id} - {p.title.substring(0, 18)}...
+                            <button
+                              key={p.id}
+                              onClick={() => handleEditClick(p)}
+                              className={"text-[11px] px-3 py-1.5 border rounded-lg font-semibold transition " + (
+                                editId === p.id
+                                  ? "bg-[#8B5CF6] text-white border-transparent"
+                                  : (darkMode ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100")
+                              )}
+                            >
+                              ✏️ #{p.id} · {String(p.title).length > 18 ? String(p.title).substring(0, 18) + '…' : p.title}
                             </button>
                           ))}
                         </div>
@@ -552,23 +874,29 @@
                     )}
                   </div>
                 )}
-              </div>
+              </section>
             )}
 
-            {/* VISTA PRINCIPAL */}
-            <div id="exportable-area" className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-4 space-y-6">
-                <div className={"p-5 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
+            {/* ============ VISTA PRINCIPAL ============ */}
+            <div id="exportable-area" className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+              {/* Columna izquierda */}
+              <div className="lg:col-span-4 space-y-5">
+
+                {/* Calendario */}
+                <div className={card + " p-5"}>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-extrabold text-sm uppercase">📅 {monthNames[month]} {year}</h3>
+                    <h3 className={"font-extrabold text-xs uppercase tracking-wider " + heading}>📅 {monthNames[month]} {year}</h3>
                     <div className="flex gap-1">
-                      <button onClick={prevMonth} className="px-2.5 py-1 text-xs rounded bg-slate-100 text-slate-700">◄</button>
-                      <button onClick={nextMonth} className="px-2.5 py-1 text-xs rounded bg-slate-100 text-slate-700">►</button>
+                      <button onClick={prevMonth} aria-label="Mes anterior" className={"w-7 h-7 flex items-center justify-center text-[10px] rounded-lg transition " + (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>◄</button>
+                      <button onClick={nextMonth} aria-label="Mes siguiente" className={"w-7 h-7 flex items-center justify-center text-[10px] rounded-lg transition " + (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>►</button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
-                    <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
+
+                  <div className={"grid grid-cols-7 text-center text-[9px] font-bold uppercase mb-2 " + muted}>
+                    <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
                   </div>
+
                   <div className="grid grid-cols-7 gap-1 text-center text-xs">
                     {calendarDays.map((d, i) => {
                       if (!d) return <div key={i} className="h-8"></div>;
@@ -578,59 +906,73 @@
                       const hasEv = events.some(ev => ev.date === dateStr);
                       const isToday = (year === todayYear && month === todayMonth && d === todayDate);
 
-                      let dayClasses = "h-8 flex items-center justify-center rounded-xl font-semibold ";
+                      let dayClasses = "relative h-8 flex items-center justify-center rounded-lg font-semibold transition ";
                       if (isToday) {
-                        dayClasses += "bg-[#FF7A00] text-white font-black shadow-sm ring-2 ring-[#FF7A00]/50 ";
+                        dayClasses += "bg-[#FF7A00] text-white font-black shadow-sm ring-2 ring-[#FF7A00]/30 ";
                       } else if (hasEv) {
-                        dayClasses += "bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/40 font-bold ";
+                        dayClasses += darkMode ? "bg-[#8B5CF6]/20 text-[#A78BFA] border border-[#8B5CF6]/40 font-bold " : "bg-[#8B5CF6]/10 text-[#7c3aed] border border-[#8B5CF6]/30 font-bold ";
                       } else {
-                        dayClasses += darkMode ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100";
+                        dayClasses += darkMode ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100";
                       }
 
-                      return <div key={i} className={dayClasses}>{d}</div>;
+                      return (
+                        <div key={i} className={dayClasses} title={hasEv ? 'Reunión programada' : ''}>
+                          {d}
+                          {hasEv && !isToday && (
+                            <span className="absolute bottom-1 w-1 h-1 rounded-full bg-[#8B5CF6]"></span>
+                          )}
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
 
-                <div className={"p-5 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                  <h3 className="font-extrabold text-sm uppercase mb-3">🔔 Reuniones y Alertas</h3>
-                  <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                    {events.length === 0 ? <p className="text-xs text-slate-400">Sin eventos.</p> : events.map(ev => (
-                      <div key={ev.id} className={"p-2.5 rounded-lg border text-xs flex justify-between items-center " + (darkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 text-slate-800")}>
-                        <div>
-                          <b className="block">{ev.title}</b>
-                          <span className="text-[11px] opacity-85">📅 {ev.date} {ev.time ? "· ⏰ " + ev.time : ""}</span>
+                {/* Reuniones */}
+                <div className={card + " p-5"}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={"font-extrabold text-xs uppercase tracking-wider " + heading}>🔔 Reuniones y Alertas</h3>
+                    <span className={"text-[10px] font-bold " + muted}>{events.length}</span>
+                  </div>
+                  <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                    {sortedEvents.length === 0 ? (
+                      <p className={"text-[11px] italic " + muted}>Sin eventos programados.</p>
+                    ) : sortedEvents.map(ev => (
+                      <div key={ev.id} className={"p-3 rounded-xl border text-xs flex justify-between items-start gap-2 transition " + (darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200")}>
+                        <div className="min-w-0">
+                          <b className={"block truncate " + (darkMode ? "text-slate-100" : "text-slate-800")}>{ev.title}</b>
+                          <span className={"text-[10px] font-medium " + muted}>📅 {ev.date}{ev.time ? " · ⏰ " + ev.time : ""}</span>
                         </div>
                         {isAuthenticated && (
-                          <button onClick={() => handleDeleteEvent(ev.id)} className="text-rose-500 font-bold p-1">✕</button>
+                          <button onClick={() => handleDeleteEvent(ev.id)} aria-label="Eliminar reunión" className="text-rose-500 hover:text-rose-600 font-bold p-0.5 shrink-0 transition">✕</button>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className={"p-5 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                  <h3 className="font-extrabold text-sm uppercase mb-3">🌐 Infraestructura y Sitios OCV</h3>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {/* Infraestructura */}
+                <div className={card + " p-5"}>
+                  <h3 className={"font-extrabold text-xs uppercase tracking-wider mb-3 " + heading}>🌐 Infraestructura y Sitios OCV</h3>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                     {infrastructure.length === 0 ? (
-                      <p className="text-xs text-slate-400">Verificando sitios e IPs...</p>
+                      <p className={"text-[11px] italic " + muted}>Verificando sitios e IPs…</p>
                     ) : (
                       infrastructure.map((site, idx) => {
                         const isOnline = site.status === "En línea";
                         return (
-                          <div key={idx} className={"p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 " + (darkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800")}>
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <span title={site.status}>{isOnline ? '🟢' : '🔴'}</span>
-                              <div className="truncate">
-                                <b className="block truncate">{site.name}</b>
-                                <span className="text-[10px] opacity-75">{site.lastCheck}</span>
+                          <div key={idx} className={"p-3 rounded-xl border text-xs flex items-center justify-between gap-2 " + (darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200")}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={"w-2 h-2 rounded-full shrink-0 " + (isOnline ? "bg-emerald-500" : "bg-rose-500")} title={site.status}></span>
+                              <div className="min-w-0">
+                                <b className={"block truncate " + (darkMode ? "text-slate-100" : "text-slate-800")}>{site.name}</b>
+                                <span className={"text-[10px] " + muted}>{site.lastCheck}</span>
                               </div>
                             </div>
-                            <a 
-                              href={site.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="shrink-0 bg-[#FF7A00] hover:bg-[#e06c00] text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition"
+                            <a
+                              href={site.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 bg-[#FF7A00] hover:bg-[#e06c00] text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition"
                               title="Visitar sitio"
                             >
                               Visitar ↗
@@ -643,70 +985,154 @@
                 </div>
               </div>
 
-              <div className={"lg:col-span-8 p-6 rounded-2xl border " + (darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200")}>
-                <div className="space-y-6">
-                  {sortedAndFilteredProjects.map(p => (
-                    <div key={p.id} className="flex items-start">
-                      <div className={"w-10 h-10 border-2 rounded-full flex items-center justify-center font-bold text-xs mr-3 " + (darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300")}>{p.id}</div>
-                      <div className="flex-grow cursor-pointer" onClick={() => setSelectedProject(p)}>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-xs">{p.title}</span>
-                          <span className="font-bold text-xs text-[#8B5CF6]">{p.percentage}%</span>
-                        </div>
-                        <div className="bg-slate-100 h-6 rounded-full overflow-hidden border">
-                          <div className={"h-full " + p.color} style={{ width: p.percentage + "%" }}></div>
+              {/* Columna derecha: proyectos */}
+              <div className={card + " lg:col-span-8 p-5 md:p-6"}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={"font-extrabold text-xs uppercase tracking-wider " + heading}>Pendientes en seguimiento</h3>
+                  <span className={"text-[10px] font-bold " + muted}>{sortedAndFilteredProjects.length} de {totalProjectsCount}</span>
+                </div>
+
+                <div className="space-y-3">
+                  {sortedAndFilteredProjects.length === 0 ? (
+                    <div className={"text-center py-14 rounded-xl border border-dashed " + (darkMode ? "border-slate-700" : "border-slate-300")}>
+                      <p className="text-2xl mb-2 opacity-40">📭</p>
+                      <p className={"text-xs font-semibold " + muted}>No hay pendientes que coincidan con los filtros.</p>
+                    </div>
+                  ) : sortedAndFilteredProjects.map(p => {
+                    const pct = Math.max(0, Math.min(100, Number(p.percentage) || 0));
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedProject(p)}
+                        className={"group rounded-xl border p-4 cursor-pointer transition hover:shadow-md " + (
+                          darkMode ? "bg-slate-800/40 border-slate-700/70 hover:border-slate-600" : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={"w-9 h-9 rounded-lg flex items-center justify-center font-extrabold text-[10px] shrink-0 border " + (
+                            darkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-600"
+                          )}>
+                            {p.id}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <h4 className={"font-bold text-xs md:text-sm leading-snug truncate " + (darkMode ? "text-slate-100" : "text-slate-800")}>{p.title}</h4>
+                              <span className={"text-xs md:text-sm font-extrabold tabular-nums shrink-0 " + (darkMode ? "text-[#A78BFA]" : "text-[#7c3aed]")}>{pct}%</span>
+                            </div>
+
+                            <div className={"mt-2 h-2 w-full rounded-full overflow-hidden " + (darkMode ? "bg-slate-700/60" : "bg-slate-200/80")}>
+                              <div
+                                className={"h-full rounded-full transition-all duration-700 ease-out " + (p.color || 'bg-[#FF7A00]')}
+                                style={{ width: pct + "%" }}
+                              ></div>
+                            </div>
+
+                            <div className="mt-2.5 flex items-center justify-between gap-2">
+                              {getStatusBadge(p.status)}
+                              <span className={"text-[10px] font-bold opacity-0 group-hover:opacity-100 transition " + (darkMode ? "text-slate-400" : "text-slate-500")}>
+                                Ver detalle →
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="ml-3 mt-4">{getStatusBadge(p.status)}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
+          </main>
 
-            {/* MODAL DETALLES */}
-            {selectedProject && (
-              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className={"rounded-2xl p-6 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto transition-colors duration-300 " + (darkMode ? "bg-slate-900 text-slate-100 border border-slate-800" : "bg-white text-slate-900 border border-slate-200")}>
-                  <button onClick={() => setSelectedProject(null)} className="absolute top-4 right-4 text-slate-400 font-bold text-xl hover:opacity-80">✕</button>
-                  <h2 className="text-xl font-bold mb-1">{selectedProject.title}</h2>
-                  <p className="text-sm text-[#8B5CF6] font-bold mb-4">Progreso: {selectedProject.percentage}%</p>
-                  
+          {/* ============ MODAL DETALLES ============ */}
+          {selectedProject && (
+            <div
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={(e) => { if (e.target === e.currentTarget) setSelectedProject(null); }}
+            >
+              <div className={"rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto anim-fade-up border " + (
+                darkMode ? "bg-slate-900 text-slate-100 border-slate-800" : "bg-white text-slate-900 border-slate-200"
+              )}>
+
+                <div className={"sticky top-0 px-6 pt-5 pb-4 border-b backdrop-blur " + (darkMode ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200")}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className={"text-[10px] font-bold uppercase tracking-wider " + muted}>Pendiente #{selectedProject.id}</span>
+                      <h2 className="text-lg font-bold leading-snug mt-0.5">{selectedProject.title}</h2>
+                    </div>
+                    <button
+                      onClick={() => setSelectedProject(null)}
+                      aria-label="Cerrar"
+                      className={"w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm shrink-0 transition " + (darkMode ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-100")}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className={"flex-1 h-2 rounded-full overflow-hidden " + (darkMode ? "bg-slate-800" : "bg-slate-100")}>
+                      <div
+                        className={"h-full rounded-full " + (selectedProject.color || 'bg-[#FF7A00]')}
+                        style={{ width: Math.max(0, Math.min(100, Number(selectedProject.percentage) || 0)) + "%" }}
+                      ></div>
+                    </div>
+                    <span className={"text-xs font-extrabold tabular-nums " + (darkMode ? "text-[#A78BFA]" : "text-[#7c3aed]")}>
+                      {Number(selectedProject.percentage) || 0}%
+                    </span>
+                  </div>
+
+                  <div className="mt-3">{getStatusBadge(selectedProject.status)}</div>
+                </div>
+
+                <div className="px-6 py-5">
                   {selectedProject.notes && (
-                    <div className={"mb-4 p-3 rounded-xl border text-xs " + (darkMode ? "bg-amber-950/40 border-amber-900 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-900")}>
-                      <b>Notas Importantes:</b> {selectedProject.notes}
+                    <div className={"mb-5 p-3.5 rounded-xl border text-xs leading-relaxed " + (
+                      darkMode ? "bg-amber-500/10 border-amber-500/25 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-900"
+                    )}>
+                      <b className="block mb-1 text-[10px] uppercase tracking-wider opacity-80">Notas importantes</b>
+                      {selectedProject.notes}
                     </div>
                   )}
 
-                  <div className="mb-4">
-                    <h4 className="text-xs font-bold uppercase mb-2 opacity-80">Historial de Actualizaciones:</h4>
+                  <div className="mb-5">
+                    <h4 className={"text-[10px] font-bold uppercase tracking-wider mb-2.5 " + muted}>Historial de actualizaciones</h4>
                     {selectedProject.updates && selectedProject.updates.length > 0 ? (
                       <ul className="space-y-2">
                         {selectedProject.updates.map((up, idx) => (
-                          <li key={idx} className={"text-xs p-2.5 rounded-xl border transition-colors " + (darkMode ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800")}>
-                            <span className="font-semibold text-slate-400 mr-2">{up.date}:</span>
-                            <span>{up.text}</span>
+                          <li key={idx} className={"text-xs p-3 rounded-xl border flex gap-2 " + (darkMode ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200")}>
+                            <span className={"font-bold tabular-nums shrink-0 " + muted}>{up.date}</span>
+                            <span className="leading-relaxed">{up.text}</span>
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-slate-400 italic">No hay actualizaciones registradas.</p>
+                      <p className={"text-[11px] italic " + muted}>No hay actualizaciones registradas.</p>
                     )}
                   </div>
 
                   {selectedProject.driveUrl && (
-                    <div className="mb-4">
-                      <a href={selectedProject.driveUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-xs px-4 py-2 rounded-xl transition">
-                        📁 Abrir Carpeta en Google Drive ➔
+                    <div className="mb-5">
+                      <a
+                        href={selectedProject.driveUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-[#FF7A00] hover:bg-[#e06c00] text-white font-bold text-[11px] px-4 py-2.5 rounded-xl transition shadow-sm"
+                      >
+                        📁 Abrir carpeta en Google Drive →
                       </a>
                     </div>
                   )}
 
-                  <button onClick={() => setSelectedProject(null)} className={"w-full py-2 rounded-xl text-sm font-bold transition " + (darkMode ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-[#1E293B] hover:bg-slate-900 text-white")}>Cerrar</button>
+                  <button
+                    onClick={() => setSelectedProject(null)}
+                    className={"w-full py-2.5 rounded-xl text-sm font-bold transition " + (darkMode ? "bg-slate-800 hover:bg-slate-700 text-white" : "bg-[#1E293B] hover:bg-slate-900 text-white")}
+                  >
+                    Cerrar
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       );
     }
