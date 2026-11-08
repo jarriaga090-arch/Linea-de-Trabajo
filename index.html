@@ -122,10 +122,11 @@
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
-      // ESTADOS PARA CREACIÓN DE USUARIOS
+      // ESTADOS PARA REGISTRO DE USUARIOS
       const [newUsername, setNewUsername] = useState('');
       const [newUserPass, setNewUserPass] = useState('');
       const [newUserName, setNewUserName] = useState('');
+      const [newUserEmail, setNewUserEmail] = useState('');
       const [newUserRole, setNewUserRole] = useState('user');
 
       const [editId, setEditId] = useState(null);
@@ -224,12 +225,14 @@
               username: newUsername.trim(),
               password: newUserPass.trim(),
               name: newUserName.trim(),
+              email: newUserEmail.trim(),
               role: newUserRole
             }
           });
           setNewUsername('');
           setNewUserPass('');
           setNewUserName('');
+          setNewUserEmail('');
           setNewUserRole('user');
           showToast('Usuario registrado con éxito.', 'success');
         } catch (error) {
@@ -776,13 +779,13 @@
                   </div>
                 ) : (
                   <div>
-                    {/* SECCIÓN REGISTRAR USUARIO (EXCLUSIVO PARA ROL ADMIN) */}
+                    {/* SECCIÓN REGISTRAR USUARIO (EXCLUSIVO ROL ADMIN) */}
                     {currentUser.role === 'admin' && (
                       <div className={"rounded border p-4 mb-5 " + inset}>
                         <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>
                           ➕ Registrar Nuevo Usuario
                         </h3>
-                        <form onSubmit={handleSaveUser} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <form onSubmit={handleSaveUser} className="grid grid-cols-1 md:grid-cols-5 gap-3">
                           <div>
                             <label className={labelCls}>Usuario</label>
                             <input
@@ -816,6 +819,16 @@
                             />
                           </div>
                           <div>
+                            <label className={labelCls}>Correo electrónico</label>
+                            <input
+                              type="email"
+                              value={newUserEmail}
+                              onChange={e => setNewUserEmail(e.target.value)}
+                              placeholder="juan@ejemplo.com"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
                             <label className={labelCls}>Rol</label>
                             <select
                               value={newUserRole}
@@ -826,7 +839,7 @@
                               <option value="admin">Administrador (Total)</option>
                             </select>
                           </div>
-                          <div className="md:col-span-4 flex justify-end">
+                          <div className="md:col-span-5 flex justify-end">
                             <button
                               type="submit"
                               disabled={isLoading}
