@@ -122,6 +122,12 @@
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
+      // ESTADOS PARA CREACIÓN DE USUARIOS
+      const [newUsername, setNewUsername] = useState('');
+      const [newUserPass, setNewUserPass] = useState('');
+      const [newUserName, setNewUserName] = useState('');
+      const [newUserRole, setNewUserRole] = useState('user');
+
       const [editId, setEditId] = useState(null);
       const [editOwner, setEditOwner] = useState('');
       const [title, setTitle] = useState('');
@@ -202,6 +208,36 @@
         setCurrentUser(null);
         setIsAdminOpen(false);
         resetForm();
+      };
+
+      const handleSaveUser = async (e) => {
+        e.preventDefault();
+        if (!newUsername.trim() || !newUserPass.trim()) return;
+
+        busyRef.current = true;
+        setIsLoading(true);
+        try {
+          await cloudRequest({
+            action: 'saveUser',
+            sessionUser: currentUser,
+            newUser: {
+              username: newUsername.trim(),
+              password: newUserPass.trim(),
+              name: newUserName.trim(),
+              role: newUserRole
+            }
+          });
+          setNewUsername('');
+          setNewUserPass('');
+          setNewUserName('');
+          setNewUserRole('user');
+          showToast('Usuario registrado con éxito.', 'success');
+        } catch (error) {
+          showToast("Error al registrar usuario: " + error.message, 'error');
+        } finally {
+          busyRef.current = false;
+          setIsLoading(false);
+        }
       };
 
       const handleUpdateChange = (index, newText) => {
@@ -472,7 +508,6 @@
         { label: 'Detenido', count: stoppedCount, bar: 'bg-rose-600' }
       ];
 
-      // PERMISOS DE EDICIÓN SEGÚN EL USUARIO AUTENTICADO
       const isOwnerOrAdmin = currentUser && (
         currentUser.role === 'admin' || !editId || (editOwner && editOwner.toLowerCase() === currentUser.username.toLowerCase())
       );
@@ -741,6 +776,71 @@
                   </div>
                 ) : (
                   <div>
+                    {/* SECCIÓN REGISTRAR USUARIO (EXCLUSIVO PARA ROL ADMIN) */}
+                    {currentUser.role === 'admin' && (
+                      <div className={"rounded border p-4 mb-5 " + inset}>
+                        <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>
+                          ➕ Registrar Nuevo Usuario
+                        </h3>
+                        <form onSubmit={handleSaveUser} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                          <div>
+                            <label className={labelCls}>Usuario</label>
+                            <input
+                              type="text"
+                              required
+                              value={newUsername}
+                              onChange={e => setNewUsername(e.target.value)}
+                              placeholder="Ej. juan"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Contraseña</label>
+                            <input
+                              type="password"
+                              required
+                              value={newUserPass}
+                              onChange={e => setNewUserPass(e.target.value)}
+                              placeholder="••••••••"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Nombre completo</label>
+                            <input
+                              type="text"
+                              value={newUserName}
+                              onChange={e => setNewUserName(e.target.value)}
+                              placeholder="Ej. Juan Pérez"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Rol</label>
+                            <select
+                              value={newUserRole}
+                              onChange={e => setNewUserRole(e.target.value)}
+                              className={inputCls}
+                            >
+                              <option value="user">Usuario (Estándar)</option>
+                              <option value="admin">Administrador (Total)</option>
+                            </select>
+                          </div>
+                          <div className="md:col-span-4 flex justify-end">
+                            <button
+                              type="submit"
+                              disabled={isLoading}
+                              className={"px-4 py-2 rounded border text-[10px] font-semibold uppercase tracking-[0.08em] transition disabled:opacity-60 " + (
+                                darkMode ? "bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                              )}
+                            >
+                              Crear usuario
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
                     {/* Reuniones */}
                     <div className={"rounded border p-4 mb-5 " + inset}>
                       <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>Programar reunión o alerta</h3>
