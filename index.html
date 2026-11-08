@@ -117,12 +117,13 @@
       const [toast, setToast] = useState(null);
       const toastTimer = useRef(null);
 
-      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
       const [loginUser, setLoginUser] = useState('');
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
       const [editId, setEditId] = useState(null);
+      const [editOwner, setEditOwner] = useState('');
       const [title, setTitle] = useState('');
       const [percentage, setPercentage] = useState(0);
       const [color, setColor] = useState('bg-slate-700');
@@ -184,14 +185,12 @@
         e.preventDefault();
         setIsLoading(true);
         try {
-          await cloudRequest({ action: 'login', user: loginUser, pass: loginPass });
-          setIsAuthenticated(true);
+          const data = await cloudRequest({ action: 'login', user: loginUser, pass: loginPass });
+          setCurrentUser(data.user);
           setAuthError('');
-          window._authU = loginUser;
-          window._authP = loginPass;
           setLoginUser('');
           setLoginPass('');
-          showToast('Sesión iniciada correctamente.', 'success');
+          showToast('Bienvenido ' + data.user.name, 'success');
         } catch (error) {
           setAuthError('Usuario o contraseña incorrectos.');
         } finally {
@@ -200,10 +199,8 @@
       };
 
       const handleLogout = () => {
-        setIsAuthenticated(false);
+        setCurrentUser(null);
         setIsAdminOpen(false);
-        window._authU = '';
-        window._authP = '';
         resetForm();
       };
 
@@ -247,9 +244,9 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          const data = await cloudRequest({ action: 'saveProject', user: window._authU, pass: window._authP, project: payload });
+          const data = await cloudRequest({ action: 'saveProject', sessionUser: currentUser, project: payload });
           const saved = data.project || payload;
-          setProjects(prev => editId ? prev.map(p => p.id === editId ? saved : p) : [...prev, saved]);
+          setProjects(prev => editId ? prev.map(p => p.id === editId ? { ...saved, createdBy: editOwner || currentUser.username } : p) : [...prev, { ...saved, createdBy: currentUser.username }]);
           if (selectedProject?.id === saved.id) setSelectedProject(saved);
           resetForm();
           showToast(editId ? 'Pendiente actualizado.' : 'Pendiente anexado.', 'success');
@@ -267,7 +264,7 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          await cloudRequest({ action: 'deleteProject', user: window._authU, pass: window._authP, id: proj.id, folderUrl: proj.driveUrl });
+          await cloudRequest({ action: 'deleteProject', sessionUser: currentUser, id: proj.id });
           setProjects(prev => prev.filter(p => p.id !== proj.id));
           if (selectedProject?.id === proj.id) setSelectedProject(null);
           if (editId === proj.id) resetForm();
@@ -282,6 +279,7 @@
 
       const handleEditClick = (p) => {
         setEditId(p.id);
+        setEditOwner(p.createdBy || 'admin');
         setTitle(p.title);
         setPercentage(p.percentage);
         setColor(p.color || 'bg-slate-700');
@@ -294,6 +292,7 @@
 
       const resetForm = () => {
         setEditId(null);
+        setEditOwner('');
         setTitle('');
         setPercentage(0);
         setColor('bg-slate-700');
@@ -312,8 +311,8 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          await cloudRequest({ action: 'saveEvent', user: window._authU, pass: window._authP, event: newEv });
-          setEvents(prev => [...prev, newEv]);
+          await cloudRequest({ action: 'saveEvent', sessionUser: currentUser, event: newEv });
+          setEvents(prev => [...prev, { ...newEv, createdBy: currentUser.username }]);
           setEventTitle('');
           setEventDate('');
           setEventTime('');
@@ -330,7 +329,7 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          await cloudRequest({ action: 'deleteEvent', user: window._authU, pass: window._authP, id });
+          await cloudRequest({ action: 'deleteEvent', sessionUser: currentUser, id });
           setEvents(prev => prev.filter(ev => ev.id !== id));
         } catch (error) {
           showToast("Error al eliminar reunión: " + error.message, 'error');
@@ -404,14 +403,13 @@
       const faint = darkMode ? "text-slate-500" : "text-slate-400";
       const heading = darkMode ? "text-slate-100" : "text-slate-900";
 
-      const inputCls = "w-full rounded border px-2.5 py-2 text-[13px] outline-none transition focus:ring-2 " + (
+      const inputCls = "w-full rounded border px-2.5 py-2 text-[13px] outline-none transition focus:ring-2 disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/40 " + (
         darkMode
           ? "bg-slate-800/60 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-500 focus:ring-slate-600/30"
           : "bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:border-slate-500 focus:ring-slate-400/20"
       );
       const labelCls = "block text-[10px] font-semibold uppercase tracking-[0.1em] mb-1.5 " + muted;
 
-      /* Estado: color + etiqueta en versalitas, sin píldora */
       const statusMeta = {
         'en-tiempo':  { label: 'En tiempo',  text: 'text-emerald-700', dark: 'text-emerald-400', rule: 'border-l-emerald-600', bar: 'bg-emerald-600', dot: 'bg-emerald-600' },
         'demorado':   { label: 'Demorado',   text: 'text-amber-700',   dark: 'text-amber-400',   rule: 'border-l-amber-500',   bar: 'bg-amber-500',   dot: 'bg-amber-500' },
@@ -474,10 +472,15 @@
         { label: 'Detenido', count: stoppedCount, bar: 'bg-rose-600' }
       ];
 
+      // PERMISOS DE EDICIÓN SEGÚN EL USUARIO AUTENTICADO
+      const isOwnerOrAdmin = currentUser && (
+        currentUser.role === 'admin' || !editId || (editOwner && editOwner.toLowerCase() === currentUser.username.toLowerCase())
+      );
+
       return (
         <div className={"min-h-screen transition-colors duration-200 " + (darkMode ? "bg-[#0F172A] text-slate-100" : "bg-[#F4F5F7] text-[#1E293B]")}>
 
-          {/* ============ SPLASH ============ */}
+          {/* SPLASH */}
           <div className={"fixed inset-0 z-[70] flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-500 " + (showSplash ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
             <div className="flex items-center gap-4 mb-6">
               <img src="logotipo-ocv-monterrey.svg" alt="OCV Monterrey" className="h-11 object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
@@ -492,12 +495,12 @@
             </div>
           </div>
 
-          {/* ============ BARRA DE CARGA ============ */}
+          {/* BARRA CARGA */}
           <div className={"fixed top-0 left-0 right-0 z-[65] h-[2px] transition-opacity duration-300 " + (isLoading ? "opacity-100" : "opacity-0")}>
             <div className="h-full w-full bg-slate-600 animate-pulse"></div>
           </div>
 
-          {/* ============ TOAST ============ */}
+          {/* TOAST */}
           {toast && (
             <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] anim-fade w-[calc(100%-2rem)] max-w-md">
               <div className={"flex items-start gap-2.5 rounded border px-3.5 py-2.5 shadow-lg " + (
@@ -512,7 +515,7 @@
             </div>
           )}
 
-          {/* ============ HEADER ============ */}
+          {/* HEADER */}
           <header className={"sticky top-0 z-40 border-b transition-colors duration-200 " + (
             darkMode ? "bg-[#0F172A]/95 border-slate-800" : "bg-white/95 border-slate-200"
           )}>
@@ -556,7 +559,7 @@
                   {darkMode ? 'Día' : 'Noche'}
                 </button>
 
-                {isAuthenticated ? (
+                {currentUser ? (
                   <>
                     <button
                       onClick={() => setIsAdminOpen(!isAdminOpen)}
@@ -564,7 +567,7 @@
                         darkMode ? "bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
                       )}
                     >
-                      {isAdminOpen ? 'Ocultar panel' : 'Panel admin'}
+                      {isAdminOpen ? 'Ocultar panel' : `Panel (${currentUser.name})`}
                     </button>
                     <button
                       onClick={handleLogout}
@@ -582,7 +585,7 @@
                       darkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-[#1E293B] text-white hover:bg-slate-800"
                     )}
                   >
-                    Acceso admin
+                    Iniciar Sesión
                   </button>
                 )}
               </div>
@@ -591,7 +594,7 @@
 
           <main className="max-w-[1360px] mx-auto px-4 md:px-7 pt-5 pb-14">
 
-            {/* ============ INDICADORES ============ */}
+            {/* INDICADORES */}
             <section className={"grid grid-cols-2 lg:grid-cols-4 gap-px mb-4 rounded border overflow-hidden anim-fade " + (darkMode ? "bg-slate-800 border-slate-800" : "bg-slate-200 border-slate-200")}>
               {kpis.map((k, i) => (
                 <div key={i} className={"p-4 " + (darkMode ? "bg-slate-900" : "bg-white")}>
@@ -601,7 +604,7 @@
               ))}
             </section>
 
-            {/* ============ DISTRIBUCIÓN ============ */}
+            {/* DISTRIBUCIÓN */}
             <section className={panel + " p-4 mb-4"}>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                 <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] " + muted}>Distribución por estado</h3>
@@ -627,7 +630,7 @@
               </div>
             </section>
 
-            {/* ============ HERRAMIENTAS ============ */}
+            {/* HERRAMIENTAS */}
             <section className={panel + " p-3 mb-4 no-print"}>
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
 
@@ -705,13 +708,13 @@
               </div>
             </section>
 
-            {/* ============ PANEL ADMIN ============ */}
+            {/* PANEL USUARIO / ADMIN */}
             {isAdminOpen && (
               <section className={panel + " p-5 mb-4 no-print anim-fade"}>
-                {!isAuthenticated ? (
+                {!currentUser ? (
                   <div className="max-w-sm mx-auto py-2">
                     <h2 className={"text-[11px] font-semibold uppercase tracking-[0.12em] text-center mb-4 " + heading}>
-                      Verificación de administrador
+                      Acceso de usuario
                     </h2>
                     {authError && (
                       <p className="text-[11px] mb-3 text-center font-medium text-rose-600">{authError}</p>
@@ -719,7 +722,7 @@
                     <form onSubmit={handleLogin} className="space-y-3">
                       <div>
                         <label className={labelCls}>Usuario</label>
-                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={inputCls} placeholder="Usuario" />
+                        <input type="text" required value={loginUser} onChange={e => setLoginUser(e.target.value)} className={inputCls} placeholder="Tu usuario" />
                       </div>
                       <div>
                         <label className={labelCls}>Contraseña</label>
@@ -770,9 +773,16 @@
 
                     {/* Proyecto */}
                     <div className={"flex items-baseline justify-between gap-3 border-b pb-2 mb-4 " + (darkMode ? "border-slate-800" : "border-slate-200")}>
-                      <h2 className={"text-[11px] font-semibold uppercase tracking-[0.12em] " + heading}>
-                        {editId ? 'Editar pendiente N.º ' + editId : 'Anexar nuevo pendiente'}
-                      </h2>
+                      <div>
+                        <h2 className={"text-[11px] font-semibold uppercase tracking-[0.12em] " + heading}>
+                          {editId ? 'Editar pendiente N.º ' + editId : 'Anexar nuevo pendiente'}
+                        </h2>
+                        {editId && !isOwnerOrAdmin && (
+                          <p className="text-[10px] font-medium text-amber-600 mt-0.5">
+                            🔒 Pendiente creado por {editOwner}. Solo puedes agregar actualizaciones a la bitácora.
+                          </p>
+                        )}
+                      </div>
                       {editId && (
                         <button onClick={resetForm} className={"text-[10px] font-semibold uppercase tracking-[0.08em] " + muted}>
                           Cancelar edición
@@ -783,15 +793,15 @@
                     <form onSubmit={handleSaveProject} className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                       <div className="md:col-span-2">
                         <label className={labelCls}>Título</label>
-                        <input type="text" required value={title} onChange={e => setTitle(e.target.value)} className={inputCls} />
+                        <input type="text" required disabled={!isOwnerOrAdmin} value={title} onChange={e => setTitle(e.target.value)} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>Porcentaje de avance</label>
-                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value)} className={inputCls} />
+                        <input type="number" min="0" max="100" disabled={!isOwnerOrAdmin} value={percentage} onChange={e => setPercentage(e.target.value)} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>Estado</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className={inputCls}>
+                        <select disabled={!isOwnerOrAdmin} value={status} onChange={e => setStatus(e.target.value)} className={inputCls}>
                           <option value="en-tiempo">En tiempo</option>
                           <option value="demorado">Demorado</option>
                           <option value="detenido">Detenido</option>
@@ -800,43 +810,45 @@
                       </div>
                       <div className="md:col-span-2">
                         <label className={labelCls}>Carpeta de Drive (URL)</label>
-                        <input type="url" value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" className={inputCls} />
+                        <input type="url" disabled={!isOwnerOrAdmin} value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" className={inputCls} />
                       </div>
                       <div className="md:col-span-2">
                         <label className={labelCls}>Notas</label>
-                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows="2" className={inputCls}></textarea>
+                        <textarea disabled={!isOwnerOrAdmin} value={notes} onChange={e => setNotes(e.target.value)} rows="2" className={inputCls}></textarea>
                       </div>
 
                       <div className={"md:col-span-2 rounded border p-3 " + inset}>
-                        <label className={labelCls}>Historial de actualizaciones</label>
+                        <label className={labelCls}>Historial de actualizaciones (Bitácora)</label>
                         {updatesList.length === 0 && (
                           <p className={"text-[11px] italic mb-2 " + faint}>Sin registros previos.</p>
                         )}
                         {updatesList.map((up, idx) => (
                           <div key={idx} className="flex items-center gap-2 mb-2">
                             <span className={"text-[10px] tabular w-20 shrink-0 " + faint}>{up.date}</span>
-                            <input type="text" value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={inputCls + " py-1.5 text-[12px]"} />
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUpdate(idx)}
-                              className="text-[10px] font-semibold uppercase tracking-[0.06em] text-rose-600 px-1.5 shrink-0"
-                              aria-label="Eliminar actualización"
-                            >
-                              Quitar
-                            </button>
+                            <input type="text" disabled={!isOwnerOrAdmin} value={up.text} onChange={e => handleUpdateChange(idx, e.target.value)} className={inputCls + " py-1.5 text-[12px]"} />
+                            {isOwnerOrAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUpdate(idx)}
+                                className="text-[10px] font-semibold uppercase tracking-[0.06em] text-rose-600 px-1.5 shrink-0"
+                                aria-label="Eliminar actualización"
+                              >
+                                Quitar
+                              </button>
+                            )}
                           </div>
                         ))}
                         <input
                           type="text"
                           value={newUpdateText}
                           onChange={e => setNewUpdateText(e.target.value)}
-                          placeholder="Agregar nueva actualización…"
+                          placeholder="➕ Agregar nueva actualización a este pendiente…"
                           className={inputCls + " mt-2"}
                         />
                       </div>
 
                       <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2 pt-1">
-                        {editId ? (
+                        {editId && isOwnerOrAdmin ? (
                           <button
                             type="button"
                             onClick={() => handleDeleteProject(projects.find(p => p.id === editId))}
@@ -854,15 +866,15 @@
                             darkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-[#1E293B] text-white hover:bg-slate-800"
                           )}
                         >
-                          {editId ? 'Guardar cambios' : 'Anexar pendiente'}
+                          {editId ? (isOwnerOrAdmin ? 'Guardar cambios' : 'Anexar actualización') : 'Anexar pendiente'}
                         </button>
                       </div>
                     </form>
 
-                    {/* SECCIÓN ACTUALIZADA: Menú desplegable para selección limpia de pendientes */}
+                    {/* MENÚ DESPLEGABLE DE PENDIENTES */}
                     {projects.length > 0 && (
                       <div className={"mt-5 pt-4 border-t " + (darkMode ? "border-slate-800" : "border-slate-200")}>
-                        <label className={labelCls}>Seleccionar pendiente para editar</label>
+                        <label className={labelCls}>Seleccionar pendiente para editar o actualizar bitácora</label>
                         <select
                           value={editId || ''}
                           onChange={(e) => {
@@ -873,11 +885,14 @@
                           className={inputCls}
                         >
                           <option value="">-- Seleccionar pendiente de la lista ({projects.length} disponibles) --</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>
-                              N.º {p.id} · {p.title} ({metaOf(p.status).label})
-                            </option>
-                          ))}
+                          {projects.map(p => {
+                            const isMine = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
+                            return (
+                              <option key={p.id} value={p.id}>
+                                N.º {p.id} · {p.title} ({metaOf(p.status).label}) {isMine ? '★ [Mío]' : `[Creado por: ${p.createdBy || 'admin'}]`}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     )}
@@ -886,7 +901,7 @@
               </section>
             )}
 
-            {/* ============ VISTA PRINCIPAL ============ */}
+            {/* VISTA PRINCIPAL */}
             <div id="exportable-area" className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
               {/* Columna izquierda */}
@@ -963,25 +978,28 @@
                   <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-0.5">
                     {sortedEvents.length === 0 ? (
                       <p className={"text-[11px] italic " + faint}>Sin eventos programados.</p>
-                    ) : sortedEvents.map(ev => (
-                      <div key={ev.id} className={"rounded border px-2.5 py-2 flex items-start justify-between gap-2 " + inset}>
-                        <div className="min-w-0">
-                          <p className={"text-[12px] font-medium leading-snug truncate " + heading}>{ev.title}</p>
-                          <p className={"text-[10px] tabular mt-0.5 " + faint}>
-                            {ev.date}{ev.time ? ' · ' + ev.time : ''}
-                          </p>
+                    ) : sortedEvents.map(ev => {
+                      const canDeleteEv = currentUser && (currentUser.role === 'admin' || (ev.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase());
+                      return (
+                        <div key={ev.id} className={"rounded border px-2.5 py-2 flex items-start justify-between gap-2 " + inset}>
+                          <div className="min-w-0">
+                            <p className={"text-[12px] font-medium leading-snug truncate " + heading}>{ev.title}</p>
+                            <p className={"text-[10px] tabular mt-0.5 " + faint}>
+                              {ev.date}{ev.time ? ' · ' + ev.time : ''}
+                            </p>
+                          </div>
+                          {canDeleteEv && (
+                            <button
+                              onClick={() => handleDeleteEvent(ev.id)}
+                              className="text-[10px] font-semibold text-rose-600 shrink-0 px-1"
+                              aria-label="Eliminar reunión"
+                            >
+                              ×
+                            </button>
+                          )}
                         </div>
-                        {isAuthenticated && (
-                          <button
-                            onClick={() => handleDeleteEvent(ev.id)}
-                            className="text-[10px] font-semibold text-rose-600 shrink-0 px-1"
-                            aria-label="Eliminar reunión"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1080,7 +1098,7 @@
             </div>
           </main>
 
-          {/* ============ MODAL DETALLE ============ */}
+          {/* MODAL DETALLE */}
           {selectedProject && (
             <div
               className="fixed inset-0 bg-slate-950/60 flex items-center justify-center z-50 p-4"
@@ -1094,7 +1112,9 @@
               >
                 <div className={"flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b " + (darkMode ? "border-slate-800" : "border-slate-200")}>
                   <div className="min-w-0">
-                    <p className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>Pendiente N.º {selectedProject.id}</p>
+                    <p className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>
+                      Pendiente N.º {selectedProject.id} · Creador: {selectedProject.createdBy || 'admin'}
+                    </p>
                     <h2 className={"text-[15px] font-semibold leading-snug mt-1 " + heading}>{selectedProject.title}</h2>
                   </div>
                   <button
