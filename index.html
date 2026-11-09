@@ -105,7 +105,10 @@
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
-      const [statusFilter, setStatusFilter] = useState('todos');
+      
+      // Filtro predeterminado en "activos" (oculta completados por defecto)
+      const [statusFilter, setStatusFilter] = useState('activos');
+      const [viewMode, setViewMode] = useState('lista'); // 'lista' | 'kanban'
       const [sortBy, setSortBy] = useState('asc');
       const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
@@ -122,7 +125,7 @@
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
-      // ESTADOS PARA REGISTRO DE USUARIOS
+      // ESTADOS REGISTRO DE USUARIOS
       const [newUsername, setNewUsername] = useState('');
       const [newUserPass, setNewUserPass] = useState('');
       const [newUserName, setNewUserName] = useState('');
@@ -410,12 +413,21 @@
       const completedCount = projects.filter(p => p.status === 'completado' || Number(p.percentage) === 100).length;
       const delayedCount = projects.filter(p => p.status === 'demorado').length;
       const stoppedCount = projects.filter(p => p.status === 'detenido').length;
+      const activeCount = totalProjectsCount - completedCount;
       const healthScore = totalProjectsCount > 0 ? Math.round(((onTimeCount + completedCount) / totalProjectsCount) * 100) : 100;
 
       const searchedProjects = projects.filter(p =>
         !searchTerm.trim() || String(p.title || '').toLowerCase().includes(searchTerm.trim().toLowerCase())
       );
-      const filteredProjects = searchedProjects.filter(p => statusFilter === 'todos' || p.status === statusFilter);
+
+      // FILTRADO DE PROYECTOS SEGÚN EL BOTÓN SELECCIONADO
+      const filteredProjects = searchedProjects.filter(p => {
+        if (statusFilter === 'activos') {
+          return p.status !== 'completado' && Number(p.percentage) < 100;
+        }
+        if (statusFilter === 'todos') return true;
+        return p.status === statusFilter;
+      });
 
       const sortedAndFilteredProjects = [...filteredProjects].sort((a, b) => {
         const pa = Number(a.percentage) || 0;
@@ -478,11 +490,12 @@
       };
 
       const filterPills = [
+        { key: 'activos', label: 'Activos', count: activeCount },
         { key: 'todos', label: 'Todos', count: totalProjectsCount },
         { key: 'en-tiempo', label: 'En tiempo', count: onTimeCount },
         { key: 'demorado', label: 'Demorado', count: delayedCount },
         { key: 'detenido', label: 'Detenido', count: stoppedCount },
-        { key: 'completado', label: 'Completado', count: completedCount }
+        { key: 'completado', label: 'Completados', count: completedCount }
       ];
 
       const sortOptions = [
@@ -514,6 +527,13 @@
       const isOwnerOrAdmin = currentUser && (
         currentUser.role === 'admin' || !editId || (editOwner && editOwner.toLowerCase() === currentUser.username.toLowerCase())
       );
+
+      const kanbanColumns = [
+        { key: 'en-tiempo', title: 'En tiempo', meta: statusMeta['en-tiempo'] },
+        { key: 'demorado', title: 'Demorado', meta: statusMeta['demorado'] },
+        { key: 'detenido', title: 'Detenido', meta: statusMeta['detenido'] },
+        { key: 'completado', title: 'Completado', meta: statusMeta['completado'] }
+      ];
 
       return (
         <div className={"min-h-screen transition-colors duration-200 " + (darkMode ? "bg-[#0F172A] text-slate-100" : "bg-[#F4F5F7] text-[#1E293B]")}>
@@ -694,13 +714,38 @@
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  
+                  {/* SELECTOR DE VISTA: LISTA / KANBAN */}
+                  <div className={"flex items-center rounded border overflow-hidden " + (darkMode ? "border-slate-700" : "border-slate-300")}>
+                    <button
+                      onClick={() => setViewMode('lista')}
+                      className={"text-[11px] px-2.5 py-1.5 font-medium transition border-r " + (darkMode ? "border-slate-700 " : "border-slate-300 ") + (
+                        viewMode === 'lista'
+                          ? (darkMode ? "bg-slate-100 text-slate-900" : "bg-[#1E293B] text-white")
+                          : (darkMode ? "bg-transparent text-slate-300 hover:bg-slate-800" : "bg-white text-slate-600 hover:bg-slate-50")
+                      )}
+                    >
+                      Lista
+                    </button>
+                    <button
+                      onClick={() => setViewMode('kanban')}
+                      className={"text-[11px] px-2.5 py-1.5 font-medium transition " + (
+                        viewMode === 'kanban'
+                          ? (darkMode ? "bg-slate-100 text-slate-900" : "bg-[#1E293B] text-white")
+                          : (darkMode ? "bg-transparent text-slate-300 hover:bg-slate-800" : "bg-white text-slate-600 hover:bg-slate-50")
+                      )}
+                    >
+                      Kanban
+                    </button>
+                  </div>
+
                   <div className="relative">
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       placeholder="Buscar pendiente…"
-                      className={inputCls + " sm:w-56 pr-7"}
+                      className={inputCls + " sm:w-48 pr-7"}
                     />
                     {searchTerm && (
                       <button
@@ -779,7 +824,7 @@
                   </div>
                 ) : (
                   <div>
-                    {/* SECCIÓN REGISTRAR USUARIO (EXCLUSIVO ROL ADMIN) */}
+                    {/* REGISTRAR USUARIO (EXCLUSIVO ROL ADMIN) */}
                     {currentUser.role === 'admin' && (
                       <div className={"rounded border p-4 mb-5 " + inset}>
                         <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>
@@ -1171,7 +1216,8 @@
                       <p className={"text-[11px] font-medium uppercase tracking-[0.08em] " + muted}>Sin pendientes que coincidan</p>
                       <p className={"text-[11px] mt-1 " + faint}>Ajusta el filtro de estado o la búsqueda.</p>
                     </div>
-                  ) : (
+                  ) : viewMode === 'lista' ? (
+                    /* VISTA LISTA (CUADRÍCULA HABITUAL) */
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {sortedAndFilteredProjects.map(p => {
                         const m = metaOf(p.status);
@@ -1202,6 +1248,65 @@
                               <span className={"text-[10px] tabular " + faint}>{lastUpdateOf(p)}</span>
                             </div>
                           </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* VISTA KANBAN */
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
+                      {kanbanColumns.map(col => {
+                        const colProjects = sortedAndFilteredProjects.filter(p => p.status === col.key);
+                        return (
+                          <div key={col.key} className={"rounded border p-2.5 flex flex-col " + inset}>
+                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/50 dark:border-slate-700/50">
+                              <span className={"inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] " + (darkMode ? col.meta.dark : col.meta.text)}>
+                                <span className={"w-1.5 h-1.5 rounded-full " + col.meta.dot}></span>
+                                {col.title}
+                              </span>
+                              <span className={"text-[10px] font-bold tabular px-1.5 py-0.5 rounded " + (darkMode ? "bg-slate-800 text-slate-300" : "bg-white text-slate-600")}>
+                                {colProjects.length}
+                              </span>
+                            </div>
+
+                            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-0.5">
+                              {colProjects.length === 0 ? (
+                                <div className="py-6 text-center">
+                                  <p className={"text-[10px] italic " + faint}>Sin pendientes</p>
+                                </div>
+                              ) : (
+                                colProjects.map(p => {
+                                  const pct = Math.max(0, Math.min(100, Number(p.percentage) || 0));
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      onClick={() => setSelectedProject(p)}
+                                      className={"w-full text-left rounded border p-2.5 transition hover:shadow-sm " + (
+                                        darkMode ? "bg-slate-900 border-slate-700/80 hover:border-slate-600" : "bg-white border-slate-200 hover:border-slate-300"
+                                      )}
+                                    >
+                                      <div className="flex items-baseline justify-between gap-1 mb-1">
+                                        <span className={"text-[9px] font-semibold tracking-[0.08em] tabular " + faint}>N.º {p.id}</span>
+                                        <span className={"text-[11px] font-bold tabular " + heading}>{pct}%</span>
+                                      </div>
+                                      
+                                      <p className={"text-[12px] font-medium leading-tight line-clamp-2 mb-2 " + heading}>
+                                        {p.title}
+                                      </p>
+
+                                      <div className={"h-1 w-full rounded-sm overflow-hidden mb-2 " + (darkMode ? "bg-slate-800" : "bg-slate-100")}>
+                                        <div className={"h-full " + col.meta.bar} style={{ width: pct + "%" }}></div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-1 text-[9px]">
+                                        <span className={faint}>Por: {p.createdBy || 'admin'}</span>
+                                        <span className={"tabular " + faint}>{lastUpdateOf(p)}</span>
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
