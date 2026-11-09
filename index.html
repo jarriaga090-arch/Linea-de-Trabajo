@@ -46,7 +46,8 @@
     @keyframes splashBar { from { width: 0%; } to { width: 100%; } }
     .splash-bar { animation: splashBar 1.3s cubic-bezier(.4,0,.2,1) forwards; }
 
-    input[type="date"]::-webkit-calendar-picker-indicator { opacity: .45; cursor: pointer; }
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="time"]::-webkit-calendar-picker-indicator { opacity: .45; cursor: pointer; }
     select option { color: #0f172a; }
 
     .tabular { font-variant-numeric: tabular-nums; }
@@ -106,9 +107,8 @@
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       
-      // Filtro predeterminado en "activos" (oculta completados por defecto)
       const [statusFilter, setStatusFilter] = useState('activos');
-      const [viewMode, setViewMode] = useState('lista'); // 'lista' | 'kanban'
+      const [viewMode, setViewMode] = useState('lista');
       const [sortBy, setSortBy] = useState('asc');
       const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
@@ -125,7 +125,7 @@
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
-      // ESTADOS REGISTRO DE USUARIOS
+      // REGISTRO DE USUARIOS
       const [newUsername, setNewUsername] = useState('');
       const [newUserPass, setNewUserPass] = useState('');
       const [newUserName, setNewUserName] = useState('');
@@ -420,7 +420,6 @@
         !searchTerm.trim() || String(p.title || '').toLowerCase().includes(searchTerm.trim().toLowerCase())
       );
 
-      // FILTRADO DE PROYECTOS SEGÚN EL BOTÓN SELECCIONADO
       const filteredProjects = searchedProjects.filter(p => {
         if (statusFilter === 'activos') {
           return p.status !== 'completado' && Number(p.percentage) < 100;
@@ -899,7 +898,7 @@
                       </div>
                     )}
 
-                    {/* Reuniones */}
+                    {/* PROGRAMAR REUNIÓN (OPCIÓN 1: SELECTOR NATIVO DE TIEMPO) */}
                     <div className={"rounded border p-4 mb-5 " + inset}>
                       <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>Programar reunión o alerta</h3>
                       <form onSubmit={handleSaveEvent} className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -913,7 +912,12 @@
                         </div>
                         <div>
                           <label className={labelCls}>Hora</label>
-                          <input type="text" value={eventTime} onChange={e => setEventTime(e.target.value)} placeholder="10:00 AM" className={inputCls} />
+                          <input
+                            type="time"
+                            value={eventTime}
+                            onChange={e => setEventTime(e.target.value)}
+                            className={inputCls}
+                          />
                         </div>
                         <div className="md:col-span-4 flex justify-end">
                           <button
@@ -929,7 +933,7 @@
                       </form>
                     </div>
 
-                    {/* Proyecto */}
+                    {/* PROYECTO */}
                     <div className={"flex items-baseline justify-between gap-3 border-b pb-2 mb-4 " + (darkMode ? "border-slate-800" : "border-slate-200")}>
                       <div>
                         <h2 className={"text-[11px] font-semibold uppercase tracking-[0.12em] " + heading}>
@@ -953,10 +957,53 @@
                         <label className={labelCls}>Título</label>
                         <input type="text" required disabled={!isOwnerOrAdmin} value={title} onChange={e => setTitle(e.target.value)} className={inputCls} />
                       </div>
-                      <div>
-                        <label className={labelCls}>Porcentaje de avance</label>
-                        <input type="number" min="0" max="100" disabled={!isOwnerOrAdmin} value={percentage} onChange={e => setPercentage(e.target.value)} className={inputCls} />
+
+                      {/* PORCENTAJE DE AVANCE (OPCIÓN 3: CONTROL HÍBRIDO) */}
+                      <div className="md:col-span-1 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className={labelCls}>Porcentaje de avance</label>
+                          <span className={"text-[12px] font-bold tabular " + heading}>{percentage}%</span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            disabled={!isOwnerOrAdmin}
+                            value={percentage}
+                            onChange={e => setPercentage(Number(e.target.value))}
+                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer disabled:opacity-50 accent-slate-700 dark:accent-slate-300"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            disabled={!isOwnerOrAdmin}
+                            value={percentage}
+                            onChange={e => setPercentage(Math.min(100, Math.max(0, Number(e.target.value))))}
+                            className={inputCls + " w-16 text-center shrink-0 py-1 font-semibold"}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-1 pt-1">
+                          {[0, 25, 50, 75, 100].map(val => (
+                            <button
+                              key={val}
+                              type="button"
+                              disabled={!isOwnerOrAdmin}
+                              onClick={() => setPercentage(val)}
+                              className={"flex-1 py-1 text-[10px] font-semibold rounded border transition disabled:opacity-50 " + (
+                                Number(percentage) === val
+                                  ? (darkMode ? "bg-slate-100 text-slate-900 border-slate-100" : "bg-[#1E293B] text-white border-[#1E293B]")
+                                  : (darkMode ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50")
+                              )}
+                            >
+                              {val}%
+                            </button>
+                          ))}
+                        </div>
                       </div>
+
                       <div>
                         <label className={labelCls}>Estado</label>
                         <select disabled={!isOwnerOrAdmin} value={status} onChange={e => setStatus(e.target.value)} className={inputCls}>
@@ -966,6 +1013,7 @@
                           <option value="completado">Completado</option>
                         </select>
                       </div>
+
                       <div className="md:col-span-2">
                         <label className={labelCls}>Carpeta de Drive (URL)</label>
                         <input type="url" disabled={!isOwnerOrAdmin} value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" className={inputCls} />
@@ -1217,7 +1265,7 @@
                       <p className={"text-[11px] mt-1 " + faint}>Ajusta el filtro de estado o la búsqueda.</p>
                     </div>
                   ) : viewMode === 'lista' ? (
-                    /* VISTA LISTA (CUADRÍCULA HABITUAL) */
+                    /* VISTA LISTA */
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {sortedAndFilteredProjects.map(p => {
                         const m = metaOf(p.status);
