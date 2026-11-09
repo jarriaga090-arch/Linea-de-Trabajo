@@ -102,13 +102,18 @@
       const [projects, setProjects] = useState([]);
       const [events, setEvents] = useState([]);
       const [infrastructure, setInfrastructure] = useState([]);
-      const [darkMode, setDarkMode] = useState(false);
+      
+      // MODO NOCHE POR DEFECTO (true)
+      const [darkMode, setDarkMode] = useState(true);
 
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       
       const [statusFilter, setStatusFilter] = useState('activos');
-      const [viewMode, setViewMode] = useState('lista');
+      
+      // VISTA KANBAN POR DEFECTO ('kanban')
+      const [viewMode, setViewMode] = useState('kanban');
+      
       const [sortBy, setSortBy] = useState('asc');
       const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
@@ -898,7 +903,7 @@
                       </div>
                     )}
 
-                    {/* PROGRAMAR REUNIÓN (OPCIÓN 1: SELECTOR NATIVO DE TIEMPO) */}
+                    {/* PROGRAMAR REUNIÓN */}
                     <div className={"rounded border p-4 mb-5 " + inset}>
                       <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>Programar reunión o alerta</h3>
                       <form onSubmit={handleSaveEvent} className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -958,7 +963,7 @@
                         <input type="text" required disabled={!isOwnerOrAdmin} value={title} onChange={e => setTitle(e.target.value)} className={inputCls} />
                       </div>
 
-                      {/* PORCENTAJE DE AVANCE (OPCIÓN 3: CONTROL HÍBRIDO) */}
+                      {/* PORCENTAJE DE AVANCE */}
                       <div className="md:col-span-1 space-y-2">
                         <div className="flex items-center justify-between">
                           <label className={labelCls}>Porcentaje de avance</label>
