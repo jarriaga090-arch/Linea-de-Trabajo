@@ -103,17 +103,12 @@
       const [events, setEvents] = useState([]);
       const [infrastructure, setInfrastructure] = useState([]);
       
-      // MODO NOCHE POR DEFECTO
       const [darkMode, setDarkMode] = useState(true);
-
       const [selectedProject, setSelectedProject] = useState(null);
       const [isAdminOpen, setIsAdminOpen] = useState(false);
       
       const [statusFilter, setStatusFilter] = useState('activos');
-      
-      // VISTA KANBAN POR DEFECTO
       const [viewMode, setViewMode] = useState('kanban');
-      
       const [sortBy, setSortBy] = useState('asc');
       const [searchTerm, setSearchTerm] = useState('');
       const [isLoading, setIsLoading] = useState(false);
@@ -130,7 +125,6 @@
       const [loginPass, setLoginPass] = useState('');
       const [authError, setAuthError] = useState('');
 
-      // REGISTRO DE USUARIOS
       const [newUsername, setNewUsername] = useState('');
       const [newUserPass, setNewUserPass] = useState('');
       const [newUserName, setNewUserName] = useState('');
@@ -145,6 +139,7 @@
       const [status, setStatus] = useState('en-tiempo');
       const [notes, setNotes] = useState('');
       const [driveUrl, setDriveUrl] = useState('');
+      const [isPublic, setIsPublic] = useState(false);
       const [updatesList, setUpdatesList] = useState([]);
       const [newUpdateText, setNewUpdateText] = useState('');
 
@@ -285,6 +280,7 @@
           color,
           notes,
           driveUrl: driveUrl.trim(),
+          isPublic: Boolean(isPublic),
           updates: finalUpdates
         };
 
@@ -333,6 +329,7 @@
         setStatus(p.status || 'en-tiempo');
         setNotes(p.notes || '');
         setDriveUrl(p.driveUrl || '');
+        setIsPublic(Boolean(p.isPublic));
         setUpdatesList(p.updates || []);
         setNewUpdateText('');
       };
@@ -346,6 +343,7 @@
         setStatus('en-tiempo');
         setNotes('');
         setDriveUrl('');
+        setIsPublic(false);
         setUpdatesList([]);
         setNewUpdateText('');
       };
@@ -413,15 +411,21 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      const totalProjectsCount = projects.length;
-      const onTimeCount = projects.filter(p => p.status === 'en-tiempo').length;
-      const completedCount = projects.filter(p => p.status === 'completado' || Number(p.percentage) === 100).length;
-      const delayedCount = projects.filter(p => p.status === 'demorado').length;
-      const stoppedCount = projects.filter(p => p.status === 'detenido').length;
+      // FILTRADO DE PRIVACIDAD: El usuario ve todos sus pendientes y solo los PÚBLICOS de los demás
+      const visibleProjects = projects.filter(p => {
+        const isOwner = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
+        return isOwner || Boolean(p.isPublic);
+      });
+
+      const totalProjectsCount = visibleProjects.length;
+      const onTimeCount = visibleProjects.filter(p => p.status === 'en-tiempo').length;
+      const completedCount = visibleProjects.filter(p => p.status === 'completado' || Number(p.percentage) === 100).length;
+      const delayedCount = visibleProjects.filter(p => p.status === 'demorado').length;
+      const stoppedCount = visibleProjects.filter(p => p.status === 'detenido').length;
       const activeCount = totalProjectsCount - completedCount;
       const healthScore = totalProjectsCount > 0 ? Math.round(((onTimeCount + completedCount) / totalProjectsCount) * 100) : 100;
 
-      const searchedProjects = projects.filter(p =>
+      const searchedProjects = visibleProjects.filter(p =>
         !searchTerm.trim() || String(p.title || '').toLowerCase().includes(searchTerm.trim().toLowerCase())
       );
 
@@ -441,11 +445,8 @@
         return String(a.id).localeCompare(String(b.id), 'es', { numeric: true });
       });
 
-      // Extraer lista única de usuarios con tareas asignadas
       const uniqueUsers = Array.from(new Set(sortedAndFilteredProjects.map(p => p.createdBy || 'admin')));
-
       const sortedEvents = [...events].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-
       const lastSyncText = lastSync ? lastSync.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
       const todayReal = new Date();
@@ -453,7 +454,6 @@
       const todayMonth = todayReal.getMonth();
       const todayDate = todayReal.getDate();
 
-      /* ---------------- Tokens de diseño ---------------- */
       const surface = darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200";
       const panel = "rounded border transition-colors duration-200 " + surface;
       const inset = darkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-200";
@@ -548,9 +548,9 @@
           {/* SPLASH */}
           <div className={"fixed inset-0 z-[70] flex flex-col items-center justify-center bg-[#1E293B] text-white transition-opacity duration-500 " + (showSplash ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
             <div className="flex items-center gap-4 mb-6">
-              <img src="imágenes.jpg" alt="Secretaría de Turismo" className="h-11 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              <img src="images.jpg" alt="Secretaría de Turismo" className="h-11 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               <div className="w-px h-9 bg-white/25"></div>
-              <img src="imágenes.jpg" alt="Secretaría de Turismo" className="h-11 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              <img src="images.jpg" alt="Secretaría de Turismo" className="h-11 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
             </div>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-[0.22em] uppercase text-center px-4">Turismo 360</h1>
             <p className="text-slate-400 tracking-[0.18em] text-[10px] font-medium mt-2 uppercase text-center">Secretaría de Turismo · Gestor de Trabajo</p>
@@ -585,12 +585,10 @@
           )}>
             <div className="max-w-[1360px] mx-auto px-4 md:px-7 py-3 flex items-center justify-between gap-4">
 
-              {/* LOGO IZQUIERDO */}
               <div className="flex items-center gap-3 shrink-0">
                 <img src="images.jpg" alt="Secretaría de Turismo" className="h-8 md:h-9 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
               </div>
 
-              {/* TÍTULO Y SUBTÍTULO CENTRAL */}
               <div className="text-center flex-1 min-w-0">
                 <h1 className={"text-base md:text-lg font-semibold tracking-[0.16em] uppercase leading-tight " + heading}>
                   TURISMO 360
@@ -611,7 +609,6 @@
                 </div>
               </div>
 
-              {/* LOGO DERECHO Y BOTONES */}
               <div className="flex items-center gap-2 shrink-0">
                 <img src="images.jpg" alt="Secretaría de Turismo" className="h-8 md:h-9 object-contain rounded hidden sm:block" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
 
@@ -1024,6 +1021,30 @@
                         </select>
                       </div>
 
+                      {/* VISIBILIDAD / PRIVACIDAD DEL PENDIENTE */}
+                      <div className="md:col-span-2 flex items-center justify-between rounded border p-3 bg-slate-800/40 border-slate-700">
+                        <div>
+                          <p className={"text-[11px] font-semibold uppercase tracking-[0.08em] " + heading}>Visibilidad del pendiente</p>
+                          <p className={"text-[10px] " + faint}>
+                            {isPublic 
+                              ? "🌐 Público: Todos los miembros del equipo pueden ver este pendiente." 
+                              : "🔒 Privado: Solo tú puedes visualizar este pendiente."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!isOwnerOrAdmin}
+                          onClick={() => setIsPublic(!isPublic)}
+                          className={"px-3.5 py-1.5 rounded border text-[10px] font-semibold uppercase tracking-[0.08em] transition shrink-0 " + (
+                            isPublic 
+                              ? "bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60" 
+                              : "bg-amber-950/60 border-amber-700 text-amber-300 hover:bg-amber-900/60"
+                          )}
+                        >
+                          {isPublic ? "🌐 Publicado (Público)" : "🔒 Oculto (Privado)"}
+                        </button>
+                      </div>
+
                       <div className="md:col-span-2">
                         <label className={labelCls}>Carpeta de Drive (URL)</label>
                         <input type="url" disabled={!isOwnerOrAdmin} value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" className={inputCls} />
@@ -1088,24 +1109,24 @@
                     </form>
 
                     {/* MENÚ DESPLEGABLE DE PENDIENTES */}
-                    {projects.length > 0 && (
+                    {visibleProjects.length > 0 && (
                       <div className={"mt-5 pt-4 border-t " + (darkMode ? "border-slate-800" : "border-slate-200")}>
                         <label className={labelCls}>Seleccionar pendiente para editar o actualizar bitácora</label>
                         <select
                           value={editId || ''}
                           onChange={(e) => {
-                            const selected = projects.find(p => String(p.id) === e.target.value);
+                            const selected = visibleProjects.find(p => String(p.id) === e.target.value);
                             if (selected) handleEditClick(selected);
                             else resetForm();
                           }}
                           className={inputCls}
                         >
-                          <option value="">-- Seleccionar pendiente de la lista ({projects.length} disponibles) --</option>
-                          {projects.map(p => {
+                          <option value="">-- Seleccionar pendiente de la lista ({visibleProjects.length} disponibles) --</option>
+                          {visibleProjects.map(p => {
                             const isMine = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
                             return (
                               <option key={p.id} value={p.id}>
-                                N.º {p.id} · {p.title} ({metaOf(p.status).label}) {isMine ? '★ [Mío]' : `[Creado por: ${p.createdBy || 'admin'}]`}
+                                N.º {p.id} · {p.title} ({metaOf(p.status).label}) {p.isPublic ? '🌐 [Público]' : '🔒 [Privado]'} {isMine ? '★ [Mío]' : `[Creado por: ${p.createdBy || 'admin'}]`}
                               </option>
                             );
                           })}
@@ -1289,7 +1310,12 @@
                             )}
                           >
                             <div className="flex items-baseline justify-between gap-2">
-                              <span className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>N.º {p.id}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>N.º {p.id}</span>
+                                <span className={"text-[10px] font-semibold " + (p.isPublic ? "text-emerald-400" : "text-amber-400")}>
+                                  {p.isPublic ? "🌐" : "🔒"}
+                                </span>
+                              </div>
                               <span className={"text-[13px] font-semibold tabular " + heading}>{pct}%</span>
                             </div>
 
@@ -1310,17 +1336,17 @@
                       })}
                     </div>
                   ) : (
-                    /* VISTA KANBAN CON SWIMLANES (CARRILES HORIZONTALES POR USUARIO) */
+                    /* VISTA KANBAN CON SWIMLANES POR USUARIO */
                     <div className="space-y-4">
                       {uniqueUsers.map(user => {
                         const userProjects = sortedAndFilteredProjects.filter(p => (p.createdBy || 'admin') === user);
+                        const isMe = currentUser && user.toLowerCase() === currentUser.username.toLowerCase();
                         return (
                           <div key={user} className={"rounded border p-3 " + inset}>
-                            {/* Encabezado del Carril (Swimlane Header) */}
                             <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200/50 dark:border-slate-700/50">
                               <div className="flex items-center gap-2">
                                 <span className={"text-[11px] font-semibold uppercase tracking-[0.1em] " + heading}>
-                                  👤 Usuario: {user}
+                                  👤 {user} {isMe ? "★ (Tus pendientes)" : ""}
                                 </span>
                                 <span className={"text-[10px] px-2 py-0.5 rounded font-bold tabular " + (
                                   darkMode ? "bg-slate-800 text-slate-300 border border-slate-700" : "bg-white text-slate-600 border border-slate-200"
@@ -1330,7 +1356,6 @@
                               </div>
                             </div>
 
-                            {/* Columnas del Kanban para este usuario */}
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
                               {kanbanColumns.map(col => {
                                 const colProjects = userProjects.filter(p => p.status === col.key);
@@ -1363,7 +1388,12 @@
                                               )}
                                             >
                                               <div className="flex items-baseline justify-between gap-1 mb-1">
-                                                <span className={"text-[9px] font-semibold tracking-[0.08em] tabular " + faint}>N.º {p.id}</span>
+                                                <div className="flex items-center gap-1">
+                                                  <span className={"text-[9px] font-semibold tracking-[0.08em] tabular " + faint}>N.º {p.id}</span>
+                                                  <span className={"text-[9px] " + (p.isPublic ? "text-emerald-400" : "text-amber-400")} title={p.isPublic ? "Público para el equipo" : "Privado (Solo tú)"}>
+                                                    {p.isPublic ? "🌐" : "🔒"}
+                                                  </span>
+                                                </div>
                                                 <span className={"text-[11px] font-bold tabular " + heading}>{pct}%</span>
                                               </div>
                                               
@@ -1412,9 +1442,16 @@
               >
                 <div className={"flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b " + (darkMode ? "border-slate-800" : "border-slate-200")}>
                   <div className="min-w-0">
-                    <p className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>
-                      Pendiente N.º {selectedProject.id} · Creador: {selectedProject.createdBy || 'admin'}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className={"text-[10px] font-semibold uppercase tracking-[0.1em] tabular " + faint}>
+                        Pendiente N.º {selectedProject.id} · Creador: {selectedProject.createdBy || 'admin'}
+                      </p>
+                      <span className={"text-[10px] px-2 py-0.5 rounded font-semibold uppercase tracking-[0.06em] " + (
+                        selectedProject.isPublic ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800" : "bg-amber-950/80 text-amber-300 border border-amber-800"
+                      )}>
+                        {selectedProject.isPublic ? "🌐 Público" : "🔒 Privado"}
+                      </span>
+                    </div>
                     <h2 className={"text-[15px] font-semibold leading-snug mt-1 " + heading}>{selectedProject.title}</h2>
                   </div>
                   <button
