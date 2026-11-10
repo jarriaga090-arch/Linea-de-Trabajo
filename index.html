@@ -64,6 +64,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
+    // ⚠️ URL de la implementación de Apps Script (sin "/u/3/"). Si creas una implementación nueva, cámbiala aquí.
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwMfm9Fk2v6Q-ysnlB9VLmYukU1F_7sSk1cDL-LsapnhAAK-3WAVKMQoG8u1AmfEZG5eg/exec";
     const REFRESH_MS = 60000;
 
@@ -114,6 +115,7 @@
       const [isLoading, setIsLoading] = useState(false);
 
       const [syncState, setSyncState] = useState('loading');
+      const [syncError, setSyncError] = useState('');
       const [lastSync, setLastSync] = useState(null);
       const busyRef = useRef(false);
 
@@ -171,16 +173,15 @@
         if (!silent) setSyncState('loading');
         try {
           const data = await cloudLoad();
-          if (data.projects) setProjects(data.projects);
-          else setProjects([]);
-          if (data.events) setEvents(data.events);
-          else setEvents([]);
-          if (data.infrastructure) setInfrastructure(data.infrastructure);
-          else setInfrastructure([]);
+          setProjects(data.projects || []);
+          setEvents(data.events || []);
+          setInfrastructure(data.infrastructure || []);
           setSyncState('ok');
+          setSyncError('');
           setLastSync(new Date());
         } catch (error) {
           console.error("Error al leer:", error);
+          setSyncError(error.message || 'Error desconocido');
           setSyncState('error');
         }
       };
@@ -196,13 +197,16 @@
         setIsLoading(true);
         try {
           const data = await cloudRequest({ action: 'login', user: loginUser, pass: loginPass });
-          setCurrentUser(data.user);
+          const user = { ...data.user, role: String(data.user.role || 'user').toLowerCase().trim() };
+          setCurrentUser(user);
           setAuthError('');
           setLoginUser('');
           setLoginPass('');
-          showToast('Bienvenido ' + data.user.name, 'success');
+          showToast('Bienvenido ' + user.name, 'success');
         } catch (error) {
-          setAuthError('Usuario o contraseña incorrectos.');
+          setAuthError(error.message && error.message.indexOf('contraseña') === -1
+            ? 'Error de conexión: ' + error.message
+            : 'Usuario o contraseña incorrectos.');
         } finally {
           setIsLoading(false);
         }
@@ -411,10 +415,11 @@
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-      // FILTRADO DE PRIVACIDAD: El usuario ve todos sus pendientes y solo los PÚBLICOS de los demás
+      // PRIVACIDAD: el ADMIN ve todo; los demás ven los suyos y solo los PÚBLICOS de otros
       const visibleProjects = projects.filter(p => {
+        const isAdminUser = currentUser && currentUser.role === 'admin';
         const isOwner = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
-        return isOwner || Boolean(p.isPublic);
+        return isAdminUser || isOwner || Boolean(p.isPublic);
       });
 
       const totalProjectsCount = visibleProjects.length;
@@ -601,10 +606,10 @@
                     <span className={"text-[10px] font-medium " + muted}>Conectando con Google Drive…</span>
                   )}
                   {syncState === 'ok' && (
-                    <span className={"text-[10px] font-medium " + muted}>Sincronizado · última lectura {lastSyncText}</span>
+                    <span className={"text-[10px] font-medium " + muted}>Sincronizado · última lectura {lastSyncText} · {projects.length} pendientes en la hoja</span>
                   )}
                   {syncState === 'error' && (
-                    <span className="text-[10px] font-medium text-rose-600">Sin conexión con Google Sheets</span>
+                    <span className="text-[10px] font-medium text-rose-600 truncate" title={syncError}>Sin conexión con Google Sheets · {syncError}</span>
                   )}
                 </div>
               </div>
@@ -940,6 +945,30 @@
                       </form>
                     </div>
 
+                    {/* MENÚ DESPLEGABLE DE PENDIENTES (arriba del formulario para acceso rápido) */}
+                    <div className={"rounded border p-4 mb-5 " + inset}>
+                      <label className={labelCls}>Seleccionar pendiente para editar, cambiar visibilidad o actualizar bitácora</label>
+                      <select
+                        value={editId || ''}
+                        onChange={(e) => {
+                          const selected = visibleProjects.find(p => String(p.id) === e.target.value);
+                          if (selected) handleEditClick(selected);
+                          else resetForm();
+                        }}
+                        className={inputCls}
+                      >
+                        <option value="">-- Seleccionar pendiente de la lista ({visibleProjects.length} disponibles) --</option>
+                        {visibleProjects.map(p => {
+                          const isMine = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
+                          return (
+                            <option key={p.id} value={p.id}>
+                              N.º {p.id} · {p.title} ({metaOf(p.status).label}) {p.isPublic ? '🌐 [Público]' : '🔒 [Privado]'} {isMine ? '★ [Mío]' : `[Creado por: ${p.createdBy || 'admin'}]`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
                     {/* PROYECTO */}
                     <div className={"flex items-baseline justify-between gap-3 border-b pb-2 mb-4 " + (darkMode ? "border-slate-800" : "border-slate-200")}>
                       <div>
@@ -1028,7 +1057,7 @@
                           <p className={"text-[10px] " + faint}>
                             {isPublic 
                               ? "🌐 Público: Todos los miembros del equipo pueden ver este pendiente." 
-                              : "🔒 Privado: Solo tú puedes visualizar este pendiente."}
+                              : "🔒 Privado: Solo tú (y el administrador) pueden visualizar este pendiente."}
                           </p>
                         </div>
                         <button
@@ -1107,32 +1136,6 @@
                         </button>
                       </div>
                     </form>
-
-                    {/* MENÚ DESPLEGABLE DE PENDIENTES */}
-                    {visibleProjects.length > 0 && (
-                      <div className={"mt-5 pt-4 border-t " + (darkMode ? "border-slate-800" : "border-slate-200")}>
-                        <label className={labelCls}>Seleccionar pendiente para editar o actualizar bitácora</label>
-                        <select
-                          value={editId || ''}
-                          onChange={(e) => {
-                            const selected = visibleProjects.find(p => String(p.id) === e.target.value);
-                            if (selected) handleEditClick(selected);
-                            else resetForm();
-                          }}
-                          className={inputCls}
-                        >
-                          <option value="">-- Seleccionar pendiente de la lista ({visibleProjects.length} disponibles) --</option>
-                          {visibleProjects.map(p => {
-                            const isMine = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
-                            return (
-                              <option key={p.id} value={p.id}>
-                                N.º {p.id} · {p.title} ({metaOf(p.status).label}) {p.isPublic ? '🌐 [Público]' : '🔒 [Privado]'} {isMine ? '★ [Mío]' : `[Creado por: ${p.createdBy || 'admin'}]`}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-                    )}
                   </div>
                 )}
               </section>
@@ -1293,7 +1296,11 @@
                   {sortedAndFilteredProjects.length === 0 ? (
                     <div className={"rounded border border-dashed py-10 text-center " + (darkMode ? "border-slate-700" : "border-slate-300")}>
                       <p className={"text-[11px] font-medium uppercase tracking-[0.08em] " + muted}>Sin pendientes que coincidan</p>
-                      <p className={"text-[11px] mt-1 " + faint}>Ajusta el filtro de estado o la búsqueda.</p>
+                      <p className={"text-[11px] mt-1 " + faint}>
+                        {projects.length > 0 && totalProjectsCount === 0
+                          ? "Hay " + projects.length + " pendientes en la hoja, pero son privados. Inicia sesión para verlos."
+                          : "Ajusta el filtro de estado o la búsqueda."}
+                      </p>
                     </div>
                   ) : viewMode === 'lista' ? (
                     /* VISTA LISTA */
