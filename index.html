@@ -65,14 +65,17 @@
     const { useState, useEffect, useRef } = React;
 
     // ⚠️ URL de la implementación de Apps Script (sin "/u/3/"). Si creas una implementación nueva, cámbiala aquí.
-   const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiEjQ0xG31h8kowtqg1SgkE0nYqn1UHmkz12ba72oGmtp_Re_LVRQWvicNNPenzVEh9A/exec";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiEjQ0xG31h8kowtqg1SgkE0nYqn1UHmkz12ba72oGmtp_Re_LVRQWvicNNPenzVEh9A/exec";
     const REFRESH_MS = 60000;
+
+    // Credenciales de la sesión activa: se envían al servidor en cada petición para que filtre y autorice.
+    let CURRENT_AUTH = null;
 
     async function cloudRequest(payload) {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, auth: CURRENT_AUTH })
       });
       const raw = await res.text();
       let data;
@@ -172,7 +175,7 @@
         if (busyRef.current) return;
         if (!silent) setSyncState('loading');
         try {
-          const data = await cloudLoad();
+          const data = CURRENT_AUTH ? await cloudRequest({ action: 'load' }) : await cloudLoad();
           setProjects(data.projects || []);
           setEvents(data.events || []);
           setInfrastructure(data.infrastructure || []);
@@ -198,8 +201,10 @@
         try {
           const data = await cloudRequest({ action: 'login', user: loginUser, pass: loginPass });
           const user = { ...data.user, role: String(data.user.role || 'user').toLowerCase().trim() };
+          CURRENT_AUTH = { user: loginUser, pass: loginPass };
           setCurrentUser(user);
           setAuthError('');
+          loadFromCloud(true);
           setLoginUser('');
           setLoginPass('');
           showToast('Bienvenido ' + user.name, 'success');
@@ -213,7 +218,10 @@
       };
 
       const handleLogout = () => {
+        CURRENT_AUTH = null;
         setCurrentUser(null);
+        setProjects([]);
+        loadFromCloud(true);
         setIsAdminOpen(false);
         resetForm();
       };
@@ -263,6 +271,10 @@
       const handleSaveProject = async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
+        if (editId && !isOwnerOrAdmin) {
+          showToast('Solo el creador puede modificar este pendiente.', 'error');
+          return;
+        }
 
         const finalUpdates = [...updatesList];
         if (newUpdateText.trim()) {
@@ -291,7 +303,7 @@
         busyRef.current = true;
         setIsLoading(true);
         try {
-          const data = await cloudRequest({ action: 'saveProject', sessionUser: currentUser, project: payload });
+          const data = await cloudRequest({ action: 'saveProject', sessionUser: currentUser, project: payload, isNew: !editId });
           const saved = data.project || payload;
           setProjects(prev => editId ? prev.map(p => p.id === editId ? { ...saved, createdBy: editOwner || currentUser.username } : p) : [...prev, { ...saved, createdBy: currentUser.username }]);
           if (selectedProject?.id === saved.id) setSelectedProject(saved);
@@ -417,7 +429,7 @@
 
       // PRIVACIDAD: el ADMIN ve todo; los demás ven los suyos y solo los PÚBLICOS de otros
       const visibleProjects = projects.filter(p => {
-        const isAdminUser = currentUser && currentUser.role === 'admin';
+        const isAdminUser = false; // el admin NO ve pendientes privados ajenos
         const isOwner = currentUser && (p.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
         return isAdminUser || isOwner || Boolean(p.isPublic);
       });
@@ -537,7 +549,7 @@
       ];
 
       const isOwnerOrAdmin = currentUser && (
-        currentUser.role === 'admin' || !editId || (editOwner && editOwner.toLowerCase() === currentUser.username.toLowerCase())
+        !editId || (editOwner && editOwner.toLowerCase() === currentUser.username.toLowerCase())
       );
 
       const kanbanColumns = [
@@ -606,7 +618,7 @@
                     <span className={"text-[10px] font-medium " + muted}>Conectando con Google Drive…</span>
                   )}
                   {syncState === 'ok' && (
-                    <span className={"text-[10px] font-medium " + muted}>Sincronizado · última lectura {lastSyncText} · {projects.length} pendientes en la hoja</span>
+                    <span className={"text-[10px] font-medium " + muted}>Sincronizado · última lectura {lastSyncText} · {projects.length} pendientes visibles para ti</span>
                   )}
                   {syncState === 'error' && (
                     <span className="text-[10px] font-medium text-rose-600 truncate" title={syncError}>Sin conexión con Google Sheets · {syncError}</span>
@@ -977,7 +989,7 @@
                         </h2>
                         {editId && !isOwnerOrAdmin && (
                           <p className="text-[10px] font-medium text-amber-600 mt-0.5">
-                            🔒 Pendiente creado por {editOwner}. Solo puedes agregar actualizaciones a la bitácora.
+                            🌐 Pendiente público de {editOwner}. Solo su creador puede modificarlo (solo lectura).
                           </p>
                         )}
                       </div>
@@ -1057,7 +1069,7 @@
                           <p className={"text-[10px] " + faint}>
                             {isPublic 
                               ? "🌐 Público: Todos los miembros del equipo pueden ver este pendiente." 
-                              : "🔒 Privado: Solo tú (y el administrador) pueden visualizar este pendiente."}
+                              : "🔒 Privado: Solo tú puedes visualizar este pendiente."}
                           </p>
                         </div>
                         <button
@@ -1132,7 +1144,7 @@
                             darkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-[#1E293B] text-white hover:bg-slate-800"
                           )}
                         >
-                          {editId ? (isOwnerOrAdmin ? 'Guardar cambios' : 'Anexar actualización') : 'Anexar pendiente'}
+                          {editId ? (isOwnerOrAdmin ? 'Guardar cambios' : 'Solo lectura') : 'Anexar pendiente'}
                         </button>
                       </div>
                     </form>
