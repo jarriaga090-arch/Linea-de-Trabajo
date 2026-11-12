@@ -151,6 +151,12 @@
       const [eventTitle, setEventTitle] = useState('');
       const [eventDate, setEventDate] = useState('');
       const [eventTime, setEventTime] = useState('');
+      const [eventType, setEventType] = useState('reunion');
+      const [eventEndTime, setEventEndTime] = useState('');
+      const [eventRepeat, setEventRepeat] = useState(24);
+      const [eventPublic, setEventPublic] = useState(false);
+      const [eventRecipients, setEventRecipients] = useState([]);
+      const [users, setUsers] = useState([]);
 
       const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -178,6 +184,7 @@
           const data = CURRENT_AUTH ? await cloudRequest({ action: 'load' }) : await cloudLoad();
           setProjects(data.projects || []);
           setEvents(data.events || []);
+          setUsers(data.users || []);
           setInfrastructure(data.infrastructure || []);
           setSyncState('ok');
           setSyncError('');
@@ -371,17 +378,44 @@
       const handleSaveEvent = async (e) => {
         e.preventDefault();
         if (!eventTitle || !eventDate) return;
-        const newEv = { id: String(Date.now()), title: eventTitle, date: eventDate, time: eventTime || 'Todo el día' };
+        if (!eventTime) {
+          showToast('Indica la hora ' + (eventType === 'alerta' ? 'límite de la alerta.' : 'de inicio de la reunión.'), 'error');
+          return;
+        }
+        if (eventType === 'reunion' && (!eventEndTime || eventEndTime <= eventTime)) {
+          showToast('La hora de fin debe ser posterior a la hora de inicio.', 'error');
+          return;
+        }
+        const newEv = {
+          id: String(Date.now()),
+          title: eventTitle,
+          date: eventDate,
+          time: eventTime,
+          type: eventType,
+          endTime: eventType === 'reunion' ? eventEndTime : '',
+          repeatHours: eventType === 'alerta' ? Number(eventRepeat) : 0,
+          isPublic: Boolean(eventPublic),
+          recipients: eventRecipients
+        };
 
         busyRef.current = true;
         setIsLoading(true);
         try {
-          await cloudRequest({ action: 'saveEvent', sessionUser: currentUser, event: newEv });
-          setEvents(prev => [...prev, { ...newEv, createdBy: currentUser.username }]);
+          const evData = await cloudRequest({ action: 'saveEvent', sessionUser: currentUser, event: newEv });
+          setEvents(prev => [...prev, { ...newEv, createdBy: currentUser.username, ...(evData.event || {}) }]);
           setEventTitle('');
           setEventDate('');
           setEventTime('');
-          showToast('Reunión programada.', 'success');
+          setEventEndTime('');
+          setEventRepeat(24);
+          setEventPublic(false);
+          setEventRecipients([]);
+          const kindLabel = newEv.type === 'alerta' ? 'Alerta creada' : 'Reunión programada';
+          if (evData.warning) {
+            showToast(kindLabel + '. Correos enviados: ' + (evData.notified || 0) + '. Aviso: ' + evData.warning, 'error');
+          } else {
+            showToast(kindLabel + '. Correos enviados: ' + (evData.notified || 0) + '.', 'success');
+          }
         } catch (error) {
           showToast("Error al guardar reunión: " + error.message, 'error');
         } finally {
@@ -391,11 +425,13 @@
       };
 
       const handleDeleteEvent = async (id) => {
+        if (!window.confirm('¿Eliminar este evento? Se enviará un correo de cancelación a los notificados.')) return;
         busyRef.current = true;
         setIsLoading(true);
         try {
           await cloudRequest({ action: 'deleteEvent', sessionUser: currentUser, id });
           setEvents(prev => prev.filter(ev => ev.id !== id));
+          showToast('Evento eliminado.', 'success');
         } catch (error) {
           showToast("Error al eliminar reunión: " + error.message, 'error');
         } finally {
@@ -930,6 +966,23 @@
                     <div className={"rounded border p-4 mb-5 " + inset}>
                       <h3 className={"text-[10px] font-semibold uppercase tracking-[0.1em] mb-3 " + muted}>Programar reunión o alerta</h3>
                       <form onSubmit={handleSaveEvent} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="md:col-span-4 flex items-center gap-2">
+                          <span className={labelCls + " mb-0"}>Tipo</span>
+                          {[{ k: 'reunion', l: '👥 Reunión' }, { k: 'alerta', l: '⏰ Alerta' }].map(t => (
+                            <button
+                              key={t.k}
+                              type="button"
+                              onClick={() => setEventType(t.k)}
+                              className={"text-[11px] px-3 py-1.5 rounded border font-medium transition " + (
+                                eventType === t.k
+                                  ? (darkMode ? "bg-slate-100 text-slate-900 border-slate-100" : "bg-[#1E293B] text-white border-[#1E293B]")
+                                  : (darkMode ? "bg-transparent text-slate-300 border-slate-700 hover:bg-slate-800" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50")
+                              )}
+                            >
+                              {t.l}
+                            </button>
+                          ))}
+                        </div>
                         <div className="md:col-span-2">
                           <label className={labelCls}>Título</label>
                           <input type="text" required value={eventTitle} onChange={e => setEventTitle(e.target.value)} placeholder="Ej. Reunión OCV" className={inputCls} />
@@ -939,14 +992,81 @@
                           <input type="date" required value={eventDate} onChange={e => setEventDate(e.target.value)} className={inputCls} />
                         </div>
                         <div>
-                          <label className={labelCls}>Hora</label>
+                          <label className={labelCls}>{eventType === 'alerta' ? 'Hora límite' : 'Hora de inicio'}</label>
                           <input
                             type="time"
-                            value={eventTime}
+                            required value={eventTime}
                             onChange={e => setEventTime(e.target.value)}
                             className={inputCls}
                           />
                         </div>
+                        {eventType === 'reunion' ? (
+                          <div className="md:col-span-2">
+                            <label className={labelCls}>Hora de fin</label>
+                            <input type="time" required value={eventEndTime} onChange={e => setEventEndTime(e.target.value)} className={inputCls} />
+                          </div>
+                        ) : (
+                          <div className="md:col-span-2">
+                            <label className={labelCls}>Repetir el aviso cada</label>
+                            <select value={eventRepeat} onChange={e => setEventRepeat(Number(e.target.value))} className={inputCls}>
+                              <option value={1}>1 hora</option>
+                              <option value={6}>6 horas</option>
+                              <option value={12}>12 horas</option>
+                              <option value={24}>24 horas</option>
+                            </select>
+                            <p className={"text-[10px] mt-1 " + faint}>Se avisa hasta la hora límite, con un último aviso 30 min antes.</p>
+                          </div>
+                        )}
+
+                        <div className="md:col-span-2 flex items-center justify-between rounded border p-2.5 bg-slate-800/40 border-slate-700">
+                          <div>
+                            <p className={"text-[11px] font-semibold uppercase tracking-[0.08em] " + heading}>Visibilidad</p>
+                            <p className={"text-[10px] " + faint}>
+                              {eventPublic
+                                ? "🌐 Público: lo ve todo usuario con sesión."
+                                : "🔒 Privado: solo tú y los notificados."}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEventPublic(!eventPublic)}
+                            className={"px-3 py-1.5 rounded border text-[10px] font-semibold uppercase tracking-[0.08em] transition shrink-0 " + (
+                              eventPublic
+                                ? "bg-emerald-950/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60"
+                                : "bg-amber-950/60 border-amber-700 text-amber-300 hover:bg-amber-900/60"
+                            )}
+                          >
+                            {eventPublic ? "🌐 Público" : "🔒 Privado"}
+                          </button>
+                        </div>
+
+                        <div className="md:col-span-4">
+                          <label className={labelCls}>Notificar por correo a (tú recibes copia siempre)</label>
+                          <div className="flex flex-wrap gap-2">
+                            {users.filter(u => !currentUser || u.username.toLowerCase() !== currentUser.username.toLowerCase()).map(u => {
+                              const on = eventRecipients.includes(u.username);
+                              return (
+                                <button
+                                  key={u.username}
+                                  type="button"
+                                  onClick={() => setEventRecipients(on ? eventRecipients.filter(x => x !== u.username) : [...eventRecipients, u.username])}
+                                  title={u.hasEmail ? '' : 'Este usuario no tiene correo registrado'}
+                                  className={"text-[11px] px-2.5 py-1.5 rounded border font-medium transition " + (
+                                    on
+                                      ? (darkMode ? "bg-emerald-950/60 border-emerald-700 text-emerald-300" : "bg-emerald-50 border-emerald-500 text-emerald-800")
+                                      : (darkMode ? "bg-transparent text-slate-300 border-slate-700 hover:bg-slate-800" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50")
+                                  )}
+                                >
+                                  {on ? '✓ ' : ''}{u.name}{u.hasEmail ? '' : ' (sin correo)'}
+                                </button>
+                              );
+                            })}
+                            {users.length <= 1 && (
+                              <span className={"text-[11px] italic " + faint}>No hay otros usuarios registrados.</span>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="md:col-span-4 flex justify-end">
                           <button
                             type="submit"
@@ -955,7 +1075,7 @@
                               darkMode ? "bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
                             )}
                           >
-                            Añadir reunión
+                            {eventType === 'alerta' ? 'Añadir alerta' : 'Añadir reunión'}
                           </button>
                         </div>
                       </form>
@@ -1235,13 +1355,13 @@
                     {sortedEvents.length === 0 ? (
                       <p className={"text-[11px] italic " + faint}>Sin eventos programados.</p>
                     ) : sortedEvents.map(ev => {
-                      const canDeleteEv = currentUser && (currentUser.role === 'admin' || (ev.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase());
+                      const canDeleteEv = currentUser && (ev.createdBy || 'admin').toLowerCase() === currentUser.username.toLowerCase();
                       return (
                         <div key={ev.id} className={"rounded border px-2.5 py-2 flex items-start justify-between gap-2 " + inset}>
                           <div className="min-w-0">
                             <p className={"text-[12px] font-medium leading-snug truncate " + heading}>{ev.title}</p>
                             <p className={"text-[10px] tabular mt-0.5 " + faint}>
-                              {ev.date}{ev.time ? ' · ' + ev.time : ''}
+                              {ev.type === 'alerta' ? '⏰ ' : '👥 '}{ev.date}{ev.time ? ' · ' + ev.time : ''}{ev.endTime ? ' – ' + ev.endTime : ''}{ev.type === 'alerta' && ev.repeatHours ? ' · cada ' + ev.repeatHours + ' h' : ''} {ev.isPublic ? '🌐' : '🔒'}
                             </p>
                           </div>
                           {canDeleteEv && (
