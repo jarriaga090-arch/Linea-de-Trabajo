@@ -308,7 +308,11 @@
           setProjects(prev => editId ? prev.map(p => p.id === editId ? { ...saved, createdBy: editOwner || currentUser.username } : p) : [...prev, { ...saved, createdBy: currentUser.username }]);
           if (selectedProject?.id === saved.id) setSelectedProject(saved);
           resetForm();
-          showToast(editId ? 'Pendiente actualizado.' : 'Pendiente anexado.', 'success');
+          if (data.warning) {
+            showToast('Pendiente guardado, pero no se pudo crear la carpeta de Drive: ' + data.warning, 'error');
+          } else {
+            showToast(editId ? 'Pendiente actualizado.' : 'Pendiente anexado (carpeta de Drive lista).', 'success');
+          }
         } catch (error) {
           showToast("Error al guardar: " + error.message, 'error');
         } finally {
@@ -1088,7 +1092,7 @@
 
                       <div className="md:col-span-2">
                         <label className={labelCls}>Carpeta de Drive (URL)</label>
-                        <input type="url" disabled={!isOwnerOrAdmin} value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/…" className={inputCls} />
+                        <input type="url" disabled={!isOwnerOrAdmin} value={driveUrl} onChange={e => setDriveUrl(e.target.value)} placeholder="Déjalo vacío y la carpeta se crea automáticamente en Drive" className={inputCls} />
                       </div>
                       <div className="md:col-span-2">
                         <label className={labelCls}>Notas</label>
